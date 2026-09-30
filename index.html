@@ -9,7 +9,6 @@
 </head>
 <body>
 
-<!-- ============ PIN SCREEN ============ -->
 <div id="pinScreen" class="pin-screen" style="display:none;">
   <div class="pin-box">
     <div class="pin-logo"><i class="fa fa-lock"></i></div>
@@ -23,7 +22,6 @@
   </div>
 </div>
 
-<!-- ============ LOGIN SCREEN ============ -->
 <div id="loginScreen" class="login-screen">
   <div class="login-box">
     <div class="login-logo"><i class="fa fa-wheat-awn"></i></div>
@@ -53,10 +51,8 @@
   </div>
 </div>
 
-<!-- ============ MAIN APP ============ -->
 <div id="appWrapper" style="display:none;">
 
-<!-- PIN SETUP BANNER -->
 <div id="pinSetupBanner" class="pin-setup-banner" style="display:none;">
   <div class="pin-banner-content">
     <i class="fa fa-shield-halved"></i>
@@ -269,7 +265,7 @@
     <div class="page-header">
       <button class="btn back-btn" onclick="showPage('dashboard')"><i class="fa fa-arrow-left"></i> Dashboard</button>
       <h1><i class="fa fa-route"></i> Delivery Routes</h1>
-      <p class="page-sub">Sirf wo shopkeepers dikhenge jinka aaj order pending hai</p>
+      <p class="page-sub">Har shopkeeper ke products alag alag route mein assign karein</p>
     </div>
 
     <div class="box">
@@ -279,7 +275,8 @@
         <label>Route Ka Naam</label>
         <input type="text" id="routeName" placeholder="Automatic: Route 1, Route 2..." readonly style="background:#f0fdf4;color:#16a34a;font-weight:700;" />
       </div>
-      <h4 style="margin: 15px 0 10px; color:#16a34a;">Shopkeepers Chunein</h4>
+      <h4 style="margin: 15px 0 10px; color:#16a34a;">Shopkeepers aur Products Chunein</h4>
+      <p class="hint" style="margin-bottom:10px;">Shopkeeper ko select karein → uske saare products auto-select. Jo product dusre route pe le jaana hai wo uncheck karein.</p>
       <div id="routeShopPicker" class="route-shop-picker"></div>
       <button class="btn primary big" onclick="saveRoute()"><i class="fa fa-save"></i> Route Save Karein</button>
       <button class="btn big" onclick="resetRouteForm()">Cancel</button>
@@ -309,14 +306,12 @@
     <div id="deliveryList" class="list"></div>
   </section>
 
-  <!-- ============ HISTORY (2 Tabs: Sales Report + Orders Log) ============ -->
   <section id="history" class="page">
     <div class="page-header">
       <h1><i class="fa fa-chart-line"></i> History / Reports</h1>
       <p class="page-sub">Sales report aur purane orders</p>
     </div>
 
-    <!-- Tabs -->
     <div class="history-tabs">
       <button class="history-tab active" id="tabSales" onclick="switchHistoryTab('sales')">
         <i class="fa fa-chart-line"></i> Sales Report
@@ -326,7 +321,6 @@
       </button>
     </div>
 
-    <!-- Tab 1: Sales Report -->
     <div id="salesReportTab">
       <div class="box">
         <h3><i class="fa fa-filter"></i> Filter</h3>
@@ -359,14 +353,12 @@
         </button>
       </div>
 
-      <!-- Summary Cards -->
       <div class="cards" id="salesSummaryCards">
         <div class="card blue"><div class="card-icon"><i class="fa fa-shopping-cart"></i></div><div><h3 id="salesTotalOrders">0</h3><p>Total Orders</p></div></div>
         <div class="card orange"><div class="card-icon"><i class="fa fa-weight-hanging"></i></div><div><h3 id="salesTotalLoad">0</h3><p>Total Maal</p></div></div>
         <div class="card green"><div class="card-icon"><i class="fa fa-box"></i></div><div><h3 id="salesTotalProducts">0</h3><p>Total Products</p></div></div>
       </div>
 
-      <!-- Product wise -->
       <div class="box">
         <div class="box-head">
           <h2><i class="fa fa-boxes-stacked"></i> Product Wise Report</h2>
@@ -375,7 +367,6 @@
         <div id="salesProductWiseList" class="sales-list"></div>
       </div>
 
-      <!-- Shopkeeper wise -->
       <div class="box">
         <div class="box-head">
           <h2><i class="fa fa-store"></i> Shopkeeper Wise Report</h2>
@@ -385,7 +376,6 @@
       </div>
     </div>
 
-    <!-- Tab 2: Orders Log -->
     <div id="ordersLogTab" style="display:none;">
       <div class="filters">
         <input type="text" id="historySearch" placeholder="🔍 Shopkeeper..." oninput="renderHistory()" />
@@ -458,7 +448,6 @@
 </main>
 </div>
 
-<!-- MODALS -->
 <div id="pendingShopModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closePendingShopModal()">&times;</span>
@@ -513,7 +502,6 @@
   </div>
 </div>
 
-<!-- Sales Report Shop Detail Modal -->
 <div id="salesShopModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closeSalesShopModal()">&times;</span>
@@ -522,7 +510,6 @@
   </div>
 </div>
 
-<!-- Sales Report Product Detail Modal -->
 <div id="salesProductModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closeSalesProductModal()">&times;</span>
