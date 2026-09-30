@@ -9,209 +9,108 @@
 </head>
 <body>
 
-<!-- ============ LOGIN SCREEN ============ -->
+<!-- LOGIN -->
 <div id="loginScreen" class="login-screen">
   <div class="login-box">
-    <div class="login-logo">
-      <i class="fa fa-wheat-awn"></i>
-    </div>
+    <div class="login-logo"><i class="fa fa-wheat-awn"></i></div>
     <h1 id="loginTitle">Atta Chakki</h1>
     <p class="login-sub">Login karein apna data dekhne ke liye</p>
-
     <div class="form-group">
       <label><i class="fa fa-user"></i> Username</label>
       <input type="text" id="loginUser" placeholder="Username daalein" autocomplete="off" />
     </div>
-
     <div class="form-group">
       <label><i class="fa fa-lock"></i> Password</label>
       <input type="password" id="loginPass" placeholder="Password daalein" />
     </div>
-
     <div id="loginError" class="login-error"></div>
-
-    <button class="btn primary big" onclick="doLogin()">
-      <i class="fa fa-sign-in-alt"></i> Login
-    </button>
-
+    <button class="btn primary big" onclick="doLogin()"><i class="fa fa-sign-in-alt"></i> Login</button>
     <div class="login-footer" id="signupLinkBox">
       Pehli baar? <a href="#" onclick="showSignup()">Admin Account Banayein</a>
     </div>
-
     <div id="signupSection" style="display:none; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 18px;">
       <h3 style="margin-bottom:14px; color:#16a34a;">Admin Account Banayein</h3>
-      <div class="form-group">
-        <label>Username</label>
-        <input type="text" id="signupUser" placeholder="Username chunein" autocomplete="off" />
-      </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="signupPass" placeholder="Password" />
-      </div>
-      <div class="form-group">
-        <label>Confirm Password</label>
-        <input type="password" id="signupPass2" placeholder="Password dobara" />
-      </div>
-      <button class="btn primary big" onclick="doSignup()">
-        <i class="fa fa-user-plus"></i> Admin Account Banayein
-      </button>
+      <div class="form-group"><label>Username</label><input type="text" id="signupUser" autocomplete="off" /></div>
+      <div class="form-group"><label>Password</label><input type="password" id="signupPass" /></div>
+      <div class="form-group"><label>Confirm Password</label><input type="password" id="signupPass2" /></div>
+      <button class="btn primary big" onclick="doSignup()"><i class="fa fa-user-plus"></i> Admin Account Banayein</button>
       <button class="btn big" onclick="hideSignup()">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- ============ MAIN APP ============ -->
+<!-- MAIN APP -->
 <div id="appWrapper" style="display:none;">
-
 <div class="topbar">
-  <div class="topbar-logo">
-    <i class="fa fa-wheat-awn"></i>
-    <span id="topbarTitle">Atta Chakki</span>
-  </div>
+  <div class="topbar-logo"><i class="fa fa-wheat-awn"></i><span id="topbarTitle">Atta Chakki</span></div>
   <div class="topbar-actions">
-    <button class="icon-btn" onclick="toggleMode()" title="Mobile/PC Mode">
-      <i class="fa fa-mobile-screen" id="modeIcon"></i>
-    </button>
-    <button class="icon-btn" onclick="doLogout()" title="Logout">
-      <i class="fa fa-sign-out-alt"></i>
-    </button>
-    <button class="icon-btn menu-btn" onclick="toggleSidebar()">
-      <i class="fa fa-bars"></i>
-    </button>
+    <button class="icon-btn" onclick="toggleMode()"><i class="fa fa-mobile-screen" id="modeIcon"></i></button>
+    <button class="icon-btn" onclick="doLogout()"><i class="fa fa-sign-out-alt"></i></button>
+    <button class="icon-btn menu-btn" onclick="toggleSidebar()"><i class="fa fa-bars"></i></button>
   </div>
 </div>
 
 <aside class="sidebar" id="sidebar">
-  <div class="sidebar-logo">
-    <i class="fa fa-wheat-awn"></i>
-    <span id="sidebarTitle">Atta Chakki</span>
-  </div>
-  <div class="user-info-box" id="userInfoBox">
+  <div class="sidebar-logo"><i class="fa fa-wheat-awn"></i><span id="sidebarTitle">Atta Chakki</span></div>
+  <div class="user-info-box">
     <i class="fa fa-user-circle"></i>
-    <div>
-      <div id="userNameLabel">User</div>
-      <div id="userRoleLabel" class="user-role">Staff</div>
-    </div>
+    <div><div id="userNameLabel">User</div><div id="userRoleLabel" class="user-role">Staff</div></div>
   </div>
-  <nav class="sidebar-nav" id="sidebarNav">
-    <!-- dynamic -->
-  </nav>
+  <nav class="sidebar-nav" id="sidebarNav"></nav>
 </aside>
 
 <main class="main" id="main">
 
   <section id="dashboard" class="page active">
-    <div class="page-header">
-      <div>
-        <h1>Dashboard</h1>
-        <p class="page-sub" id="todayDateLabel">—</p>
-      </div>
-    </div>
-
+    <div class="page-header"><div><h1>Dashboard</h1><p class="page-sub" id="todayDateLabel">—</p></div></div>
     <div class="big-buttons">
-      <button class="big-btn new-order" onclick="showPage('neworder')">
-        <i class="fa fa-plus-circle"></i>
-        <span>Naya Order</span>
-        <small>Order add karein</small>
-      </button>
-      <button class="big-btn all-orders" onclick="showPage('orders')">
-        <i class="fa fa-truck"></i>
-        <span>Orders / Loading</span>
-        <small>Sab orders dekhein</small>
-      </button>
+      <button class="big-btn new-order" onclick="showPage('neworder')"><i class="fa fa-plus-circle"></i><span>Naya Order</span><small>Order add karein</small></button>
+      <button class="big-btn all-orders" onclick="showPage('orders')"><i class="fa fa-truck"></i><span>Orders / Loading</span><small>Sab orders dekhein</small></button>
     </div>
-
     <div class="cards">
-      <div class="card blue">
-        <div class="card-icon"><i class="fa fa-users"></i></div>
-        <div><h3 id="totalShopkeepers">0</h3><p>Shopkeepers</p></div>
-      </div>
-      <div class="card orange">
-        <div class="card-icon"><i class="fa fa-calendar-day"></i></div>
-        <div><h3 id="todayOrders">0</h3><p>Aaj ke Orders</p></div>
-      </div>
-      <div class="card red">
-        <div class="card-icon"><i class="fa fa-hourglass-half"></i></div>
-        <div><h3 id="pendingOrders">0</h3><p>Pending</p></div>
-      </div>
-      <div class="card green">
-        <div class="card-icon"><i class="fa fa-check-circle"></i></div>
-        <div><h3 id="deliveredOrders">0</h3><p>Delivered</p></div>
-      </div>
+      <div class="card blue"><div class="card-icon"><i class="fa fa-users"></i></div><div><h3 id="totalShopkeepers">0</h3><p>Shopkeepers</p></div></div>
+      <div class="card orange"><div class="card-icon"><i class="fa fa-calendar-day"></i></div><div><h3 id="todayOrders">0</h3><p>Aaj ke Orders</p></div></div>
+      <div class="card red"><div class="card-icon"><i class="fa fa-hourglass-half"></i></div><div><h3 id="pendingOrders">0</h3><p>Pending</p></div></div>
+      <div class="card green"><div class="card-icon"><i class="fa fa-check-circle"></i></div><div><h3 id="deliveredOrders">0</h3><p>Delivered</p></div></div>
     </div>
-
-    <!-- ===== TODAY'S PENDING SHOPKEEPER ORDER ===== -->
     <div class="box">
-      <div class="box-head">
-        <h2><i class="fa fa-bell"></i> Today's Pending Shopkeeper Order</h2>
-        <span class="pill" id="pendingShopBadge">0</span>
-      </div>
+      <div class="box-head"><h2><i class="fa fa-bell"></i> Today's Pending Shopkeeper Order</h2><span class="pill" id="pendingShopBadge">0</span></div>
       <div id="pendingShopList" class="pending-shop-list"></div>
     </div>
-
     <div class="box">
-      <div class="box-head">
-        <h2><i class="fa fa-truck"></i> Aaj Ka Load</h2>
-        <span class="pill" id="todayLoadBadge">0</span>
-      </div>
+      <div class="box-head"><h2><i class="fa fa-truck"></i> Aaj Ka Load</h2><span class="pill" id="todayLoadBadge">0</span></div>
       <div id="todayLoadList"></div>
     </div>
   </section>
 
-  <!-- ============ NEW ORDER PAGE (2-STEP) ============ -->
   <section id="neworder" class="page">
     <div class="page-header">
       <button class="btn back-btn" onclick="showPage('dashboard')"><i class="fa fa-arrow-left"></i> Wapas</button>
       <h1>Naya Order</h1>
       <p class="page-sub" id="newOrderSub">Pehle shopkeeper chunein</p>
     </div>
-
-    <!-- STEP 1: Shopkeeper Grid -->
     <div id="shopPickerStep">
       <div class="shop-picker-grid" id="shopPickerGrid"></div>
     </div>
-
-    <!-- STEP 2: Order Form -->
     <div id="orderFormStep" style="display:none;">
       <div class="selected-shop-bar">
         <div class="selected-shop-info">
           <i class="fa fa-store"></i>
-          <div>
-            <div class="ss-name" id="selectedShopName">—</div>
-            <div class="ss-mobile" id="selectedShopMobile">—</div>
-          </div>
+          <div><div class="ss-name" id="selectedShopName">—</div><div class="ss-mobile" id="selectedShopMobile">—</div></div>
         </div>
-        <button class="btn small" onclick="changeShopkeeper()">
-          <i class="fa fa-exchange-alt"></i> Change
-        </button>
+        <button class="btn small" onclick="changeShopkeeper()"><i class="fa fa-exchange-alt"></i> Change</button>
       </div>
-
       <div class="box">
         <div class="form-row">
-          <div class="form-group">
-            <label><i class="fa fa-calendar"></i> Date *</label>
-            <input type="date" id="orderDate" />
-          </div>
-          <div class="form-group">
-            <label><i class="fa fa-sticky-note"></i> Notes</label>
-            <input type="text" id="orderNotes" placeholder="Optional" />
-          </div>
+          <div class="form-group"><label><i class="fa fa-calendar"></i> Date *</label><input type="date" id="orderDate" /></div>
+          <div class="form-group"><label><i class="fa fa-sticky-note"></i> Notes</label><input type="text" id="orderNotes" placeholder="Optional" /></div>
         </div>
-
         <hr class="divider">
-
         <h3 class="section-title"><i class="fa fa-boxes-stacked"></i> Products</h3>
         <div id="productRows"></div>
-
-        <button class="btn add-product-btn" onclick="addProductRow()">
-          <i class="fa fa-plus"></i> Aur Product Add Karein
-        </button>
-
+        <button class="btn add-product-btn" onclick="addProductRow()"><i class="fa fa-plus"></i> Aur Product Add Karein</button>
         <div class="order-summary" id="orderSummary"></div>
-
-        <button class="btn primary big" onclick="saveMultiOrder()">
-          <i class="fa fa-save"></i> Order Save Karein
-        </button>
+        <button class="btn primary big" onclick="saveMultiOrder()"><i class="fa fa-save"></i> Order Save Karein</button>
       </div>
     </div>
   </section>
@@ -222,7 +121,6 @@
       <h1><i class="fa fa-truck"></i> Orders / Loading</h1>
       <p class="page-sub">Kis dukaan pe kitna maal dena hai</p>
     </div>
-
     <div class="filters">
       <input type="date" id="ordersDate" onchange="renderOrdersPage()" />
       <select id="ordersStatus" onchange="renderOrdersPage()">
@@ -231,55 +129,33 @@
         <option value="all">Sab</option>
       </select>
     </div>
-
     <div class="load-summary" id="ordersSummary"></div>
     <div id="ordersList" class="list"></div>
   </section>
 
   <section id="shopkeepers" class="page">
-    <div class="page-header">
-      <h1>Shopkeepers</h1>
-      <p class="page-sub">Apne tamam shopkeepers manage karein</p>
-    </div>
-
+    <div class="page-header"><h1>Shopkeepers</h1><p class="page-sub">Apne tamam shopkeepers manage karein</p></div>
     <div class="box" id="shopkeeperFormBox">
       <h3 id="shopFormTitle">Naya Shopkeeper Add Karein</h3>
       <input type="hidden" id="shopId" />
       <div class="form-row">
-        <div class="form-group">
-          <label>Naam *</label>
-          <input type="text" id="shopName" placeholder="Shopkeeper ka naam" />
-        </div>
-        <div class="form-group">
-          <label>Mobile *</label>
-          <input type="text" id="shopMobile" placeholder="03001234567" />
-        </div>
+        <div class="form-group"><label>Naam *</label><input type="text" id="shopName" placeholder="Shopkeeper ka naam" /></div>
+        <div class="form-group"><label>Mobile *</label><input type="text" id="shopMobile" placeholder="03001234567" /></div>
       </div>
-      <div class="form-group">
-        <label>Shop / Address</label>
-        <input type="text" id="shopAddress" placeholder="Address" />
-      </div>
+      <div class="form-group"><label>Shop / Address</label><input type="text" id="shopAddress" placeholder="Address" /></div>
       <button class="btn primary" onclick="saveShopkeeper()"><i class="fa fa-save"></i> Save</button>
       <button class="btn" onclick="resetShopForm()">Cancel</button>
     </div>
-
     <div id="shopkeepersList" class="list"></div>
   </section>
 
   <section id="delivery" class="page">
-    <div class="page-header">
-      <h1>Delivery</h1>
-      <p class="page-sub">Pending orders shopkeeper ke hisaab se</p>
-    </div>
+    <div class="page-header"><h1>Delivery</h1><p class="page-sub">Pending orders shopkeeper ke hisaab se</p></div>
     <div id="deliveryList" class="list"></div>
   </section>
 
   <section id="history" class="page">
-    <div class="page-header">
-      <h1>Order History</h1>
-      <p class="page-sub">Purane delivered orders</p>
-    </div>
-
+    <div class="page-header"><h1>Order History</h1><p class="page-sub">Purane delivered orders</p></div>
     <div class="filters">
       <input type="text" id="historySearch" placeholder="🔍 Shopkeeper..." oninput="renderHistory()" />
       <input type="date" id="historyDate" onchange="renderHistory()" />
@@ -288,118 +164,55 @@
     <div id="historyList" class="list"></div>
   </section>
 
-  <!-- USERS MANAGEMENT (Sirf Admin) -->
   <section id="users" class="page">
-    <div class="page-header">
-      <h1><i class="fa fa-user-shield"></i> Users Management</h1>
-      <p class="page-sub">Naye users banao aur unki permissions set karo</p>
-    </div>
-
+    <div class="page-header"><h1><i class="fa fa-user-shield"></i> Users Management</h1><p class="page-sub">Naye users banao</p></div>
     <div class="box">
       <h3 id="userFormTitle">Naya User Banayein</h3>
       <input type="hidden" id="userId" />
       <div class="form-row">
-        <div class="form-group">
-          <label>Username *</label>
-          <input type="text" id="newUserName" placeholder="Username" />
-        </div>
-        <div class="form-group">
-          <label>Password *</label>
-          <input type="text" id="newUserPass" placeholder="Password" />
-        </div>
+        <div class="form-group"><label>Username *</label><input type="text" id="newUserName" /></div>
+        <div class="form-group"><label>Password *</label><input type="text" id="newUserPass" /></div>
       </div>
-      <div class="form-group">
-        <label>Display Name</label>
-        <input type="text" id="newUserDisplay" placeholder="Jaise: Ahmed (Muneer)" />
-      </div>
-
-      <h4 style="margin: 15px 0 10px; color:#16a34a;">Permissions (Kya kaam kar sakta hai?)</h4>
-      
+      <div class="form-group"><label>Display Name</label><input type="text" id="newUserDisplay" /></div>
+      <h4 style="margin: 15px 0 10px; color:#16a34a;">Permissions</h4>
       <div class="permissions-grid">
-        <label class="perm-item">
-          <input type="checkbox" id="permNewOrder" checked />
-          <span><i class="fa fa-plus-circle"></i> Naya Order add karna</span>
-        </label>
-        <label class="perm-item">
-          <input type="checkbox" id="permDeliver" checked />
-          <span><i class="fa fa-check-circle"></i> Delivered mark karna</span>
-        </label>
-        <label class="perm-item">
-          <input type="checkbox" id="permShopkeepers" />
-          <span><i class="fa fa-users"></i> Shopkeepers add/edit karna</span>
-        </label>
-        <label class="perm-item">
-          <input type="checkbox" id="permHistory" checked />
-          <span><i class="fa fa-clock"></i> History dekhna</span>
-        </label>
-        <label class="perm-item">
-          <input type="checkbox" id="permSettings" />
-          <span><i class="fa fa-gear"></i> Settings change karna</span>
-        </label>
+        <label class="perm-item"><input type="checkbox" id="permNewOrder" checked /><span><i class="fa fa-plus-circle"></i> Naya Order</span></label>
+        <label class="perm-item"><input type="checkbox" id="permDeliver" checked /><span><i class="fa fa-check-circle"></i> Delivered mark</span></label>
+        <label class="perm-item"><input type="checkbox" id="permShopkeepers" /><span><i class="fa fa-users"></i> Shopkeepers</span></label>
+        <label class="perm-item"><input type="checkbox" id="permHistory" checked /><span><i class="fa fa-clock"></i> History</span></label>
+        <label class="perm-item"><input type="checkbox" id="permSettings" /><span><i class="fa fa-gear"></i> Settings</span></label>
       </div>
-
-      <button class="btn primary big" onclick="saveUser()">
-        <i class="fa fa-save"></i> User Save Karein
-      </button>
+      <button class="btn primary big" onclick="saveUser()"><i class="fa fa-save"></i> User Save Karein</button>
       <button class="btn big" onclick="resetUserForm()">Cancel</button>
     </div>
-
     <div id="usersList" class="list"></div>
   </section>
 
   <section id="settings" class="page">
-    <div class="page-header">
-      <h1>Settings</h1>
-      <p class="page-sub">Website customise karein</p>
-    </div>
-
+    <div class="page-header"><h1>Settings</h1><p class="page-sub">Website customise karein</p></div>
     <div class="box">
       <h3><i class="fa fa-pen"></i> Business Name</h3>
-      <div class="form-group">
-        <label>Website ka naam</label>
-        <input type="text" id="setBizName" placeholder="Ahsan Atta Chakki" />
-      </div>
+      <div class="form-group"><label>Website ka naam</label><input type="text" id="setBizName" /></div>
       <button class="btn primary" onclick="saveBizName()"><i class="fa fa-save"></i> Save</button>
     </div>
-
     <div class="box">
       <h3><i class="fa fa-user-lock"></i> Apna Password Change</h3>
-      <div class="form-group">
-        <label>Purana Password</label>
-        <input type="password" id="oldPass" placeholder="Purana password" />
-      </div>
-      <div class="form-group">
-        <label>Naya Password</label>
-        <input type="password" id="newPass" placeholder="Naya password" />
-      </div>
+      <div class="form-group"><label>Purana Password</label><input type="password" id="oldPass" /></div>
+      <div class="form-group"><label>Naya Password</label><input type="password" id="newPass" /></div>
       <button class="btn primary" onclick="changePassword()"><i class="fa fa-save"></i> Change</button>
     </div>
-
     <div class="box">
       <h3><i class="fa fa-mobile-screen"></i> Mode</h3>
-      <p class="hint">Mobile ya PC mode</p>
       <div class="mode-switch">
-        <button class="mode-opt" id="modePC" onclick="setMode('pc')">
-          <i class="fa fa-desktop"></i> PC
-        </button>
-        <button class="mode-opt" id="modeMobile" onclick="setMode('mobile')">
-          <i class="fa fa-mobile-screen"></i> Mobile
-        </button>
+        <button class="mode-opt" id="modePC" onclick="setMode('pc')"><i class="fa fa-desktop"></i> PC</button>
+        <button class="mode-opt" id="modeMobile" onclick="setMode('mobile')"><i class="fa fa-mobile-screen"></i> Mobile</button>
       </div>
     </div>
-
     <div class="box">
       <h3><i class="fa fa-boxes-stacked"></i> Products Manage</h3>
       <div class="form-row">
-        <div class="form-group">
-          <label>Naya Product</label>
-          <input type="text" id="newProductName" placeholder="Jaise: Makki ka Atta" />
-        </div>
-        <div class="form-group" style="display:flex; align-items:flex-end;">
-          <button class="btn primary" onclick="addProduct()" style="width:100%">
-            <i class="fa fa-plus"></i> Add
-          </button>
-        </div>
+        <div class="form-group"><label>Naya Product</label><input type="text" id="newProductName" /></div>
+        <div class="form-group" style="display:flex; align-items:flex-end;"><button class="btn primary" onclick="addProduct()" style="width:100%"><i class="fa fa-plus"></i> Add</button></div>
       </div>
       <div id="productsList" class="product-list"></div>
     </div>
@@ -408,7 +221,7 @@
 </main>
 </div>
 
-<!-- MODAL: Pending Shopkeeper Orders (Dashboard se) -->
+<!-- MODALS -->
 <div id="pendingShopModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closePendingShopModal()">&times;</span>
@@ -417,7 +230,6 @@
   </div>
 </div>
 
-<!-- MODAL: Shop History -->
 <div id="modal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closeModal()">&times;</span>
@@ -426,19 +238,14 @@
   </div>
 </div>
 
-<!-- MODAL: Deliver -->
 <div id="deliverModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closeDeliverModal()">&times;</span>
     <h2 id="deliverTitle">Delivery</h2>
-    <p class="hint" id="deliverSubtitle">Kitna maal deliver hua? (Khaali chhor dein to poora deliver hoga)</p>
+    <p class="hint">Kitna maal deliver hua? (Khaali chhor dein to poora deliver hoga)</p>
     <div id="deliverBody"></div>
-    <button class="btn primary big" onclick="confirmDelivery()">
-      <i class="fa fa-check"></i> Delivered Confirm Karein
-    </button>
-    <button class="btn big" onclick="markAllDelivered()">
-      <i class="fa fa-check-double"></i> Poora Deliver (Bina quantity daale)
-    </button>
+    <button class="btn primary big" onclick="confirmDelivery()"><i class="fa fa-check"></i> Delivered Confirm Karein</button>
+    <button class="btn big" onclick="markAllDelivered()"><i class="fa fa-check-double"></i> Poora Deliver</button>
   </div>
 </div>
 
