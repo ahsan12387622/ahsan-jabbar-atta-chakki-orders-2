@@ -117,6 +117,51 @@ function saveSettingsFirebase() {
   saveToFirebase('settings', 'business', { bizName: settings.bizName, mode: settings.mode });
 }
 
+// ================== ROUTE AUTO-CLEANUP ==================
+// Jab koi order deliver ho — us shopkeeper ko route se hata do
+// Aur agar route khaali ho jaye to route bhi delete kar do
+function cleanupRouteAfterDelivery() {
+  if (!firebaseReady) return;
+  var routesChanged = false;
+
+  for (var r = routes.length - 1; r >= 0; r--) {
+    var route = routes[r];
+    var ids = (route.shopIds || []).slice();
+    var newIds = [];
+
+    for (var i = 0; i < ids.length; i++) {
+      var sid = ids[i];
+      var hasPending = false;
+      for (var j = 0; j < orders.length; j++) {
+        var o = orders[j];
+        if (o.shopId != sid) continue;
+        if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+        hasPending = true;
+        break;
+      }
+      if (hasPending) newIds.push(sid);
+    }
+
+    if (newIds.length !== ids.length) {
+      if (newIds.length === 0) {
+        deleteFromFirebase('routes', route.id);
+        routes.splice(r, 1);
+        routesChanged = true;
+      } else {
+        route.shopIds = newIds;
+        route.updatedAt = new Date().toISOString();
+        saveToFirebase('routes', route.id, route);
+        routesChanged = true;
+      }
+    }
+  }
+
+  if (routesChanged) {
+    renderRoutes();
+    renderDashboardRoutes();
+  }
+}
+
 // ================== AUTO DATE SHIFT ==================
 function autoShiftPendingOrders() {
   if (!firebaseReady) return;
@@ -361,7 +406,6 @@ function productQtySummary(items) {
   }
   var parts = [];
   if (totalMaund > 0) parts.push(totalMaund + ' maund');
-  // Har kg ko alag alag comma se dikhao
   for (var i = 0; i < kgList.length; i++) parts.push(kgList[i] + ' kg');
   if (parts.length === 0) return '0 kg';
   return parts.join(', ');
@@ -761,7 +805,6 @@ function openPendingShopModal(shopId) {
   for (var p = 0; p < productOrder.length; p++) {
     var pName = productOrder[p];
     var pm = productMap[pName];
-    // Maund + har kg alag alag
     var qtyParts = [];
     if (pm.maund > 0) qtyParts.push(pm.maund + ' maund');
     for (var q = 0; q < pm.kgList.length; q++) qtyParts.push(pm.kgList[q] + ' kg');
@@ -913,6 +956,7 @@ function confirmCombinedDelivery() {
   }
 
   closeDeliverModal();
+  cleanupRouteAfterDelivery();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
@@ -942,6 +986,7 @@ function markAllCombinedDelivered() {
   }
 
   closeDeliverModal();
+  cleanupRouteAfterDelivery();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
@@ -1205,9 +1250,9 @@ function renderRouteShopPicker() {
   var visible = [];
   for (var i = 0; i < shopkeepers.length; i++) {
     var s = shopkeepers[i];
-    var isSelected = selectedRouteShops.indexOf(s.id) !== -1;
+    // Sirf wo shopkeepers dikhein jinka pending/partial order hai
     var hasOrder = shopHasTodayPendingOrder(s.id);
-    if (isSelected || hasOrder) visible.push(s);
+    if (hasOrder) visible.push(s);
   }
 
   if (visible.length === 0) {
@@ -1450,6 +1495,9 @@ function openRouteModal(routeId) {
       }
     }
 
+    // Agar koi pending item nahi — shopkeeper dikhao hi nahi
+    if (shopItems.length === 0) continue;
+
     var shopTotalKg = 0;
     for (var x = 0; x < shopItems.length; x++) {
       shopTotalKg += (shopItems[x].maund * 40) + shopItems[x].kg;
@@ -1457,13 +1505,9 @@ function openRouteModal(routeId) {
     grandTotalKg += shopTotalKg;
 
     var itemsHtml = '';
-    if (shopItems.length === 0) {
-      itemsHtml = '<p style="color:#94a3b8;font-size:13px;">Koi pending order nahi.</p>';
-    } else {
-      for (var x = 0; x < shopItems.length; x++) {
-        var si = shopItems[x];
-        itemsHtml += '<p>📦 <b>' + si.product + '</b> — ' + qtyText(si.maund, si.kg) + '</p>';
-      }
+    for (var x = 0; x < shopItems.length; x++) {
+      var si = shopItems[x];
+      itemsHtml += '<p>📦 <b>' + si.product + '</b> — ' + qtyText(si.maund, si.kg) + '</p>';
     }
 
     html += '<div class="route-detail-shop">' +
@@ -1474,6 +1518,12 @@ function openRouteModal(routeId) {
       '<p style="font-size:13px;color:#64748b;margin-bottom:6px;"><i class="fa fa-phone"></i> ' + shop.mobile + '</p>' +
       '<div class="route-detail-items">' + itemsHtml + '</div>' +
     '</div>';
+  }
+
+  if (html === '') {
+    body.innerHTML = '<div class="empty"><i class="fa fa-check-circle"></i>Is route ke sab orders deliver ho gaye!</div>';
+    document.getElementById('routeModal').classList.add('active');
+    return;
   }
 
   var breakdownHtml = renderRouteProductBreakdown(stats.productBreakdown);
@@ -1921,6 +1971,7 @@ function confirmDelivery() {
   order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
   saveToFirebase('orders', order.id, order);
   closeDeliverModal();
+  cleanupRouteAfterDelivery();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
@@ -1942,6 +1993,7 @@ function markAllDelivered() {
   order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
   saveToFirebase('orders', order.id, order);
   closeDeliverModal();
+  cleanupRouteAfterDelivery();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
