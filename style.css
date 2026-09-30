@@ -279,7 +279,7 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .shop-order-line .product-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3; font-weight: 700; font-size: 14px; padding: 6px 14px; border-radius: 20px; border: 1px solid #c7d2fe; }
 .shop-order-line .qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; font-weight: 800; font-size: 14px; padding: 6px 14px; border-radius: 20px; border: 1px solid #86efac; }
 
-/* Product line (route modal, orders, delivery, pending shop modal) */
+/* Product line */
 .product-line-info .p-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3 !important; font-weight: 700; font-size: 14px; padding: 5px 12px; border-radius: 16px; border: 1px solid #c7d2fe; margin-bottom: 4px; }
 .product-line-info .p-qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d !important; font-weight: 800; font-size: 14px; padding: 5px 12px; border-radius: 16px; border: 1px solid #86efac; margin-left: 6px; margin-bottom: 4px; }
 
