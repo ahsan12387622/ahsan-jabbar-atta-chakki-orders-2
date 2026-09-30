@@ -65,6 +65,7 @@
     <div class="page-header"><div><h1>Dashboard</h1><p class="page-sub" id="todayDateLabel">—</p></div></div>
     <div class="big-buttons">
       <button class="big-btn new-order" onclick="showPage('neworder')"><i class="fa fa-plus-circle"></i><span>Naya Order</span><small>Order add karein</small></button>
+      <button class="big-btn new-route" onclick="showPage('routes')"><i class="fa fa-route"></i><span>Delivery Route Add</span><small>Route banayein</small></button>
       <button class="big-btn all-orders" onclick="showPage('orders')"><i class="fa fa-truck"></i><span>Orders / Loading</span><small>Sab orders dekhein</small></button>
     </div>
     <div class="cards">
@@ -81,7 +82,6 @@
       <div class="box-head"><h2><i class="fa fa-truck"></i> Aaj Ka Load</h2><span class="pill" id="todayLoadBadge">0</span></div>
       <div id="todayLoadList"></div>
     </div>
-    <!-- ===== ROUTES ON DASHBOARD ===== -->
     <div class="box">
       <div class="box-head"><h2><i class="fa fa-route"></i> Aaj Ke Delivery Routes</h2><span class="pill" id="routesBadge">0</span></div>
       <div id="dashboardRoutesList" class="routes-list"></div>
@@ -182,7 +182,7 @@
     <div id="ordersList" class="list"></div>
   </section>
 
-  <!-- ===== DELIVERY ROUTES PAGE ===== -->
+  <!-- DELIVERY ROUTES PAGE -->
   <section id="routes" class="page">
     <div class="page-header">
       <h1><i class="fa fa-route"></i> Delivery Routes</h1>
@@ -193,8 +193,8 @@
       <h3 id="routeFormTitle">Naya Route Banayein</h3>
       <input type="hidden" id="routeId" />
       <div class="form-group">
-        <label>Route Ka Naam *</label>
-        <input type="text" id="routeName" placeholder="Jaise: Gulberg Route, Lahore Road" />
+        <label>Route Ka Naam</label>
+        <input type="text" id="routeName" placeholder="Automatic: Route 1, Route 2..." readonly style="background:#f0fdf4;color:#16a34a;font-weight:700;" />
       </div>
       <h4 style="margin: 15px 0 10px; color:#16a34a;">Shopkeepers Chunein</h4>
       <div id="routeShopPicker" class="route-shop-picker"></div>
@@ -322,7 +322,6 @@
   </div>
 </div>
 
-<!-- ROUTE DETAIL MODAL -->
 <div id="routeModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closeRouteModal()">&times;</span>
