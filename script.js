@@ -39,7 +39,7 @@ function initFirebase(callback) {
 var shopkeepers = [];
 var orders = [];
 var products = ['Aata', 'Besan', 'Chawal ka Atta'];
-var settings = { bizName: 'Atta Chakki', mode: 'auto' };
+var settings = { bizName: 'Atta Chakki', mode: 'mobile' };
 var users = [];
 var routes = [];
 var isLoggedIn = false;
@@ -84,7 +84,6 @@ function loadAllData(callback) {
     if (doc.exists) {
       var d = doc.data();
       if (d.bizName) settings.bizName = d.bizName;
-      if (d.mode) settings.mode = d.mode;
     }
     done();
   }).catch(function(e) { done(); });
@@ -114,12 +113,10 @@ function deleteFromFirebase(collection, id) {
 function saveSettingsFirebase() {
   if (!firebaseReady) return;
   saveToFirebase('settings', 'products', { list: products });
-  saveToFirebase('settings', 'business', { bizName: settings.bizName, mode: settings.mode });
+  saveToFirebase('settings', 'business', { bizName: settings.bizName });
 }
 
 // ================== ROUTE AUTO-CLEANUP ==================
-// Jab koi order deliver ho — us shopkeeper ko route se hata do
-// Aur agar route khaali ho jaye to route bhi delete kar do
 function cleanupRouteAfterDelivery() {
   if (!firebaseReady) return;
   var routesChanged = false;
@@ -293,6 +290,7 @@ function showApp() {
   renderHistory();
   renderSettings();
   renderRoutes();
+  renderRouteShopPicker();
   if (isAdmin()) renderUsers();
 }
 
@@ -316,6 +314,7 @@ function manualSync() {
     renderRoutes();
     renderHistory();
     renderSettings();
+    renderRouteShopPicker();
     if (isAdmin()) renderUsers();
     if (can('newOrder')) prepareOrderForm();
 
@@ -465,7 +464,10 @@ function showPage(pageId, btn) {
   if (pageId === 'history') renderHistory();
   if (pageId === 'settings') renderSettings();
   if (pageId === 'users') renderUsers();
-  if (pageId === 'routes') renderRoutes();
+  if (pageId === 'routes') {
+    renderRoutes();
+    renderRouteShopPicker();
+  }
   window.scrollTo(0, 0);
 }
 
@@ -477,25 +479,14 @@ function applySettings() {
   if (t2) t2.textContent = settings.bizName;
   document.title = settings.bizName;
   var body = document.body;
-  body.classList.remove('mobile-mode', 'pc-mode');
-  if (settings.mode === 'mobile') body.classList.add('mobile-mode');
-  else if (settings.mode === 'pc') body.classList.add('pc-mode');
-  else {
-    if (window.innerWidth < 768) body.classList.add('mobile-mode');
-    else body.classList.add('pc-mode');
-  }
+  body.classList.remove('pc-mode');
+  body.classList.add('mobile-mode');
 }
 function setMode(m) {
-  settings.mode = m;
-  saveSettingsFirebase();
-  applySettings();
-  renderSettings();
-  alert('Mode: ' + (m === 'mobile' ? 'Mobile' : 'PC'));
+  // Mode change hata diya
 }
 function toggleMode() {
-  settings.mode = settings.mode === 'mobile' ? 'pc' : 'mobile';
-  saveSettingsFirebase();
-  applySettings();
+  // Mode toggle hata diya
 }
 function saveBizName() {
   var el = document.getElementById('setBizName');
@@ -509,10 +500,6 @@ function saveBizName() {
 function renderSettings() {
   var nameEl = document.getElementById('setBizName');
   if (nameEl) nameEl.value = settings.bizName;
-  var pcBtn = document.getElementById('modePC');
-  var mobBtn = document.getElementById('modeMobile');
-  if (pcBtn) pcBtn.classList.toggle('active', settings.mode === 'pc');
-  if (mobBtn) mobBtn.classList.toggle('active', settings.mode === 'mobile');
   renderProductsList();
 }
 function renderProductsList() {
@@ -1250,7 +1237,6 @@ function renderRouteShopPicker() {
   var visible = [];
   for (var i = 0; i < shopkeepers.length; i++) {
     var s = shopkeepers[i];
-    // Sirf wo shopkeepers dikhein jinka pending/partial order hai
     var hasOrder = shopHasTodayPendingOrder(s.id);
     if (hasOrder) visible.push(s);
   }
@@ -1277,15 +1263,54 @@ function renderRouteShopPicker() {
       routeBadge = '<span class="other-route-badge">📍 ' + otherRoute.name + '</span>';
     }
 
+    var orderSummaryText = getShopOrderSummaryText(s.id);
+
     html += '<label class="route-shop-item ' + (selected ? 'selected' : '') + '">' +
       '<input type="checkbox" ' + (selected ? 'checked' : '') + ' onchange="toggleRouteShop(\'' + s.id + '\', this.checked)" />' +
       '<span class="shop-info">' +
         '<span class="shop-name-line"><i class="fa fa-store"></i> ' + s.name + '</span>' +
+        (orderSummaryText ? '<span class="shop-order-summary">📦 ' + orderSummaryText + '</span>' : '') +
       '</span>' +
       routeBadge +
       '</label>';
   }
   box.innerHTML = html;
+}
+
+function getShopOrderSummaryText(shopId) {
+  var today = todayStr();
+  var productMap = {};
+  var productOrder = [];
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.shopId != shopId) continue;
+    if (o.date !== today) continue;
+    if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+    for (var j = 0; j < o.items.length; j++) {
+      var it = o.items[j];
+      var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+      var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+      if (remM <= 0 && remK <= 0) continue;
+      var pName = it.product;
+      if (!productMap[pName]) {
+        productMap[pName] = { maund: 0, kgList: [] };
+        productOrder.push(pName);
+      }
+      productMap[pName].maund += remM;
+      if (remK > 0) productMap[pName].kgList.push(remK);
+    }
+  }
+  var parts = [];
+  for (var p = 0; p < productOrder.length; p++) {
+    var name = productOrder[p];
+    var data = productMap[name];
+    var qtyParts = [];
+    if (data.maund > 0) qtyParts.push(data.maund + ' maund');
+    for (var k = 0; k < data.kgList.length; k++) qtyParts.push(data.kgList[k] + ' kg');
+    if (qtyParts.length === 0) continue;
+    parts.push(name + ': ' + qtyParts.join(', '));
+  }
+  return parts.join(' • ');
 }
 
 function toggleRouteShop(shopId, checked) {
@@ -1495,7 +1520,6 @@ function openRouteModal(routeId) {
       }
     }
 
-    // Agar koi pending item nahi — shopkeeper dikhao hi nahi
     if (shopItems.length === 0) continue;
 
     var shopTotalKg = 0;
@@ -1799,6 +1823,7 @@ function saveMultiOrder() {
       alert('Order save!');
       prepareOrderForm();
       renderDashboard();
+      renderRouteShopPicker();
       showPage('dashboard');
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
