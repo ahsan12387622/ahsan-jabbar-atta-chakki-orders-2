@@ -9,6 +9,21 @@
 </head>
 <body>
 
+<!-- ============ PIN SCREEN (Website dubara kholne pe) ============ -->
+<div id="pinScreen" class="pin-screen" style="display:none;">
+  <div class="pin-box">
+    <div class="pin-logo"><i class="fa fa-lock"></i></div>
+    <h1>Welcome Back</h1>
+    <p class="pin-sub" id="pinUserName">—</p>
+    <p class="pin-hint">Apna 4-digit PIN daalein</p>
+    <input type="password" id="pinInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" autocomplete="off" />
+    <div id="pinError" class="pin-error"></div>
+    <button class="btn primary big" onclick="verifyPin()"><i class="fa fa-unlock"></i> Unlock</button>
+    <button class="btn big" onclick="pinForgot()"><i class="fa fa-key"></i> PIN Bhool Gaye? (Password se Login)</button>
+  </div>
+</div>
+
+<!-- ============ LOGIN SCREEN ============ -->
 <div id="loginScreen" class="login-screen">
   <div class="login-box">
     <div class="login-logo"><i class="fa fa-wheat-awn"></i></div>
@@ -38,7 +53,24 @@
   </div>
 </div>
 
+<!-- ============ MAIN APP ============ -->
 <div id="appWrapper" style="display:none;">
+
+<!-- PIN SETUP BANNER (Login ke baad) -->
+<div id="pinSetupBanner" class="pin-setup-banner" style="display:none;">
+  <div class="pin-banner-content">
+    <i class="fa fa-shield-halved"></i>
+    <div class="pin-banner-text">
+      <strong>PIN set karein?</strong>
+      <p>Agli baar jaldi login karne ke liye 4-digit PIN banayein</p>
+    </div>
+    <div class="pin-banner-btns">
+      <button class="btn primary small" onclick="openPinSetup()">Haan</button>
+      <button class="btn small" onclick="hidePinBanner()">Skip</button>
+    </div>
+  </div>
+</div>
+
 <div class="topbar">
   <div class="topbar-logo"><i class="fa fa-wheat-awn"></i><span id="topbarTitle">Atta Chakki</span></div>
   <div class="topbar-actions">
@@ -267,6 +299,12 @@
       <div class="form-group"><label>Website ka naam</label><input type="text" id="setBizName" /></div>
       <button class="btn primary" onclick="saveBizName()"><i class="fa fa-save"></i> Save</button>
     </div>
+    <div class="box" id="pinSettingsBox">
+      <h3><i class="fa fa-shield-halved"></i> PIN Lock</h3>
+      <p class="hint" id="pinStatusText">PIN abhi set nahi hai</p>
+      <button class="btn primary" onclick="openPinSetup()" id="setPinBtn"><i class="fa fa-plus"></i> Set PIN</button>
+      <button class="btn danger" onclick="removePin()" id="removePinBtn" style="display:none;"><i class="fa fa-trash"></i> PIN Remove Karein</button>
+    </div>
     <div class="box">
       <h3><i class="fa fa-user-lock"></i> Apna Password Change</h3>
       <div class="form-group"><label>Purana Password</label><input type="password" id="oldPass" /></div>
@@ -318,6 +356,25 @@
     <span class="close" onclick="closeRouteModal()">&times;</span>
     <h2 id="routeModalTitle">Route Detail</h2>
     <div id="routeModalBody"></div>
+  </div>
+</div>
+
+<div id="pinSetupModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closePinSetup()">&times;</span>
+    <h2 id="pinSetupTitle">PIN Set Karein</h2>
+    <p class="hint">4-digit PIN daalein (sirf numbers)</p>
+    <div class="form-group">
+      <label>Naya PIN</label>
+      <input type="password" id="newPin1" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label>PIN Confirm Karein</label>
+      <input type="password" id="newPin2" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" autocomplete="off" />
+    </div>
+    <div id="pinSetupError" class="login-error"></div>
+    <button class="btn primary big" onclick="savePin()"><i class="fa fa-save"></i> PIN Save Karein</button>
+    <button class="btn big" onclick="closePinSetup()">Cancel</button>
   </div>
 </div>
 
