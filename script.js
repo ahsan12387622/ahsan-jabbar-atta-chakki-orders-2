@@ -55,17 +55,14 @@ var selectedEditIndex = -1;
 var currentOrderItems = [];
 var selectedRouteShops = [];
 
-// Pending shop modal ke liye
 var currentPendingShopId = null;
 var currentPendingProducts = [];
 
-// Menu & Dashboard layout
 var menuLayout = null;
 var dashboardLayout = null;
 var menuEditMode = false;
 var dashboardEditMode = false;
 
-// Default layouts
 var DEFAULT_MENU = [
   { key: 'dashboard', label: 'Dashboard', icon: 'fa-home', show: true },
   { key: 'neworder', label: 'Naya Order', icon: 'fa-plus-circle', show: true },
@@ -79,11 +76,11 @@ var DEFAULT_MENU = [
 ];
 
 var DEFAULT_DASHBOARD = [
-  { key: 'bigButtons', label: 'Big Buttons (Naya Order, Route, Orders)', show: true, size: 100 },
-  { key: 'cards', label: '4 Cards (Shopkeepers, Orders, Pending, Delivered)', show: true, size: 100 },
-  { key: 'pendingShops', label: "Today's Pending Shopkeeper Order", show: true, size: 100 },
-  { key: 'load', label: 'Aaj Ka Load', show: true, size: 100 },
-  { key: 'routes', label: 'Aaj Ke Delivery Routes', show: true, size: 100 }
+  { key: 'bigButtons', label: 'Big Buttons', show: true, size: 100, view: 'grid' },
+  { key: 'cards', label: '4 Cards', show: true, size: 100, view: 'grid' },
+  { key: 'pendingShops', label: "Today's Pending Shops", show: true, size: 100, view: 'list' },
+  { key: 'load', label: 'Aaj Ka Load', show: true, size: 100, view: 'list' },
+  { key: 'routes', label: 'Aaj Ke Routes', show: true, size: 100, view: 'list' }
 ];
 
 // ================== FIREBASE SYNC ==================
@@ -149,10 +146,8 @@ function saveSettingsFirebase() {
 
 // ================== LAYOUT SYSTEM ==================
 function loadLayouts() {
-  // Menu layout
   if (currentUser && currentUser.menuLayout && Array.isArray(currentUser.menuLayout) && currentUser.menuLayout.length > 0) {
     menuLayout = currentUser.menuLayout.slice();
-    // Add any new defaults missing
     for (var i = 0; i < DEFAULT_MENU.length; i++) {
       var exists = false;
       for (var j = 0; j < menuLayout.length; j++) {
@@ -164,7 +159,6 @@ function loadLayouts() {
     menuLayout = JSON.parse(JSON.stringify(DEFAULT_MENU));
   }
 
-  // Dashboard layout
   if (currentUser && currentUser.dashboardLayout && Array.isArray(currentUser.dashboardLayout) && currentUser.dashboardLayout.length > 0) {
     dashboardLayout = currentUser.dashboardLayout.slice();
     for (var i = 0; i < DEFAULT_DASHBOARD.length; i++) {
@@ -173,6 +167,10 @@ function loadLayouts() {
         if (dashboardLayout[j].key === DEFAULT_DASHBOARD[i].key) { exists = true; break; }
       }
       if (!exists) dashboardLayout.push(JSON.parse(JSON.stringify(DEFAULT_DASHBOARD[i])));
+    }
+    // Ensure each has view property
+    for (var i = 0; i < dashboardLayout.length; i++) {
+      if (!dashboardLayout[i].view) dashboardLayout[i].view = 'grid';
     }
   } else {
     dashboardLayout = JSON.parse(JSON.stringify(DEFAULT_DASHBOARD));
@@ -292,12 +290,19 @@ function renderDashEditList() {
   var html = '';
   for (var i = 0; i < dashboardLayout.length; i++) {
     var item = dashboardLayout[i];
+    var currentView = item.view || 'grid';
+    var gridActive = currentView === 'grid' ? ' active' : '';
+    var listActive = currentView === 'list' ? ' active' : '';
     html += '<div class="dash-edit-row">' +
       '<input type="checkbox" ' + (item.show ? 'checked' : '') + ' onchange="toggleDashShow(' + i + ', this.checked)" />' +
       '<span class="de-name">' + item.label + '</span>' +
       '<span class="de-slider-wrap">' +
         '<input type="range" min="20" max="100" value="' + item.size + '" oninput="updateDashSize(' + i + ', this.value)" />' +
         '<span class="de-value" id="deVal' + i + '">' + item.size + '%</span>' +
+      '</span>' +
+      '<span class="de-view-toggle">' +
+        '<button class="' + gridActive + '" onclick="setDashView(' + i + ', \'grid\')"><i class="fa fa-th-large"></i> Grid</button>' +
+        '<button class="' + listActive + '" onclick="setDashView(' + i + ', \'list\')"><i class="fa fa-list"></i> List</button>' +
       '</span>' +
     '</div>';
   }
@@ -319,6 +324,14 @@ function updateDashSize(idx, val) {
   if (lbl) lbl.textContent = dashboardLayout[idx].size + '%';
   saveDashboardLayout();
   applyDashboardLayout();
+}
+
+function setDashView(idx, view) {
+  if (idx < 0 || idx >= dashboardLayout.length) return;
+  dashboardLayout[idx].view = view;
+  saveDashboardLayout();
+  applyDashboardLayout();
+  renderDashEditList();
 }
 
 function resetDashboardLayout() {
@@ -349,7 +362,6 @@ function applyDashboardLayout() {
       el.classList.add('dash-hidden');
       el.style.display = 'none';
     }
-    // Size
     var size = parseInt(item.size) || 100;
     if (size >= 100) {
       el.style.width = '';
@@ -362,10 +374,28 @@ function applyDashboardLayout() {
       el.style.marginLeft = 'auto';
       el.style.marginRight = 'auto';
     }
+
+    // Apply Grid/List view
+    var view = item.view || 'grid';
+    if (item.key === 'bigButtons') {
+      var bb = document.getElementById('bigButtonsWrap');
+      if (bb) {
+        if (view === 'list') bb.classList.add('list-view');
+        else bb.classList.remove('list-view');
+      }
+    }
+    if (item.key === 'cards') {
+      var cw = document.getElementById('cardsWrap');
+      if (cw) {
+        if (view === 'list') cw.classList.add('list-view');
+        else cw.classList.remove('list-view');
+      }
+    }
+    // Other sections (pendingShops, load, routes) already list by default
   }
 }
 
-// ================== HIDDEN MENU LIST (Settings) ==================
+// ================== HIDDEN MENU LIST ==================
 function renderHiddenMenuList() {
   var box = document.getElementById('hiddenMenuBox');
   var list = document.getElementById('hiddenMenuList');
@@ -375,10 +405,7 @@ function renderHiddenMenuList() {
   for (var i = 0; i < menuLayout.length; i++) {
     if (!menuLayout[i].show) hidden.push(menuLayout[i]);
   }
-  if (hidden.length === 0) {
-    box.style.display = 'none';
-    return;
-  }
+  if (hidden.length === 0) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   var html = '';
   for (var i = 0; i < hidden.length; i++) {
@@ -788,6 +815,7 @@ function showApp() {
   renderPinSettings();
   applyDashboardLayout();
   renderHiddenMenuList();
+  populateSalesFilters();
   if (isAdmin()) renderUsers();
 }
 
@@ -820,6 +848,7 @@ function manualSync() {
     renderPinSettings();
     applyDashboardLayout();
     renderHiddenMenuList();
+    populateSalesFilters();
     if (isAdmin()) renderUsers();
     if (can('newOrder')) prepareOrderForm();
     var ordPage = document.getElementById('orders');
@@ -841,25 +870,19 @@ function manualSync() {
 function renderSidebarNav() {
   var nav = document.getElementById('sidebarNav');
   if (!nav || !menuLayout) return;
-
-  // Current active page
   var activePage = 'dashboard';
   var pages = document.querySelectorAll('.page.active');
   if (pages.length > 0) activePage = pages[0].id;
-
   var html = '';
   for (var i = 0; i < menuLayout.length; i++) {
     var item = menuLayout[i];
     if (!item.show) continue;
-
-    // Permission check
     if (item.key === 'neworder' && !can('newOrder')) continue;
     if (item.key === 'shopkeepers' && !can('shopkeepers')) continue;
     if (item.key === 'history' && !can('history')) continue;
     if (item.key === 'settings' && !can('settings')) continue;
     if (item.key === 'users' && !isAdmin()) continue;
     if (item.key === 'routes' && !can('routes')) continue;
-
     var activeClass = (activePage === item.key) ? ' active' : '';
     html += '<button class="nav-btn' + activeClass + '" onclick="showPage(\'' + item.key + '\', this)">' +
       '<i class="fa ' + item.icon + '"></i> <span>' + item.label + '</span>' +
@@ -867,7 +890,6 @@ function renderSidebarNav() {
   }
   html += '<button class="nav-btn" onclick="doLogout()"><i class="fa fa-sign-out-alt"></i> <span>Logout</span></button>';
   nav.innerHTML = html;
-
   if (currentUser) {
     document.getElementById('userNameLabel').textContent = currentUser.display || currentUser.user;
     var roleEl = document.getElementById('userRoleLabel');
@@ -963,7 +985,6 @@ function showPage(pageId, btn) {
   var target = document.getElementById(pageId);
   if (target) target.classList.add('active');
 
-  // Sidebar nav highlight
   var navBtns = document.querySelectorAll('.nav-btn');
   for (var j = 0; j < navBtns.length; j++) navBtns[j].classList.remove('active');
   if (btn) btn.classList.add('active');
@@ -971,7 +992,6 @@ function showPage(pageId, btn) {
   var sb = document.getElementById('sidebar');
   if (sb) sb.classList.remove('open');
 
-  // Close menu edit if open
   if (menuEditMode) {
     menuEditMode = false;
     document.getElementById('menuEditPanel').style.display = 'none';
@@ -991,7 +1011,11 @@ function showPage(pageId, btn) {
     renderOrdersPage();
   }
   if (pageId === 'delivery') renderDelivery();
-  if (pageId === 'history') renderHistory();
+  if (pageId === 'history') {
+    renderHistory();
+    populateSalesFilters();
+    renderSalesReport();
+  }
   if (pageId === 'settings') { renderSettings(); renderPinSettings(); renderHiddenMenuList(); }
   if (pageId === 'users') renderUsers();
   if (pageId === 'routes') { renderRoutes(); renderRouteShopPicker(); }
@@ -1043,6 +1067,7 @@ function addProduct() {
   input.value = '';
   renderProductsList();
   renderProductPickerGrid();
+  populateSalesFilters();
 }
 function deleteProduct(i) {
   if (!confirm('Delete: ' + products[i] + '?')) return;
@@ -1050,6 +1075,7 @@ function deleteProduct(i) {
   saveSettingsFirebase();
   renderProductsList();
   renderProductPickerGrid();
+  populateSalesFilters();
 }
 
 // ================== USERS ==================
@@ -1262,7 +1288,7 @@ function renderPendingShopkeeperList() {
   list.innerHTML = html;
 }
 
-// ============ PENDING SHOP MODAL — CHECKBOX + MULTI DELIVER ============
+// ============ PENDING SHOP MODAL ============
 function openPendingShopModal(shopId) {
   var today = todayStr();
   var shopName = 'Unknown', shopMobile = '';
@@ -1489,6 +1515,7 @@ function saveShopkeeper() {
       }
     }
     resetShopForm(); renderShopkeepers(); renderDashboard(); renderShopPickerGrid(); renderRouteShopPicker();
+    populateSalesFilters();
     alert('Shopkeeper save!'); return;
   }
   var newShop = { name: name, mobile: mobile, address: address, createdAt: new Date().toISOString() };
@@ -1497,6 +1524,7 @@ function saveShopkeeper() {
       newShop.id = ref.id;
       shopkeepers.push(newShop);
       resetShopForm(); renderShopkeepers(); renderDashboard(); renderShopPickerGrid(); renderRouteShopPicker();
+      populateSalesFilters();
       alert('Shopkeeper save!');
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
@@ -1532,6 +1560,7 @@ function deleteShopkeeper(id) {
   }
   shopkeepers = newList;
   renderShopkeepers(); renderDashboard(); renderShopPickerGrid(); renderRouteShopPicker();
+  populateSalesFilters();
 }
 function renderShopkeepers() {
   var list = document.getElementById('shopkeepersList');
@@ -2668,6 +2697,277 @@ function renderDelivery() {
 }
 
 // ================== HISTORY ==================
+function switchHistoryTab(tab) {
+  var tabSales = document.getElementById('tabSales');
+  var tabLog = document.getElementById('tabLog');
+  var salesTab = document.getElementById('salesReportTab');
+  var logTab = document.getElementById('ordersLogTab');
+  if (tab === 'sales') {
+    tabSales.classList.add('active');
+    tabLog.classList.remove('active');
+    salesTab.style.display = 'block';
+    logTab.style.display = 'none';
+    renderSalesReport();
+  } else {
+    tabSales.classList.remove('active');
+    tabLog.classList.add('active');
+    salesTab.style.display = 'none';
+    logTab.style.display = 'block';
+    renderHistory();
+  }
+}
+
+function populateSalesFilters() {
+  var shopSel = document.getElementById('salesShopFilter');
+  var prodSel = document.getElementById('salesProductFilter');
+  if (shopSel) {
+    var curShop = shopSel.value;
+    shopSel.innerHTML = '<option value="all">All Shopkeepers</option>';
+    for (var i = 0; i < shopkeepers.length; i++) {
+      shopSel.innerHTML += '<option value="' + shopkeepers[i].id + '">' + shopkeepers[i].name + '</option>';
+    }
+    if (curShop) shopSel.value = curShop;
+  }
+  if (prodSel) {
+    var curProd = prodSel.value;
+    prodSel.innerHTML = '<option value="all">All Products</option>';
+    for (var i = 0; i < products.length; i++) {
+      prodSel.innerHTML += '<option value="' + products[i] + '">' + products[i] + '</option>';
+    }
+    if (curProd) prodSel.value = curProd;
+  }
+  // Set default dates
+  var fromEl = document.getElementById('salesFromDate');
+  var toEl = document.getElementById('salesToDate');
+  if (fromEl && !fromEl.value) {
+    var d = new Date();
+    d.setDate(d.getDate() - 30);
+    fromEl.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  if (toEl && !toEl.value) {
+    toEl.value = todayStr();
+  }
+}
+
+function renderSalesReport() {
+  var fromEl = document.getElementById('salesFromDate');
+  var toEl = document.getElementById('salesToDate');
+  var shopSel = document.getElementById('salesShopFilter');
+  var prodSel = document.getElementById('salesProductFilter');
+  var fromDate = fromEl ? fromEl.value : '';
+  var toDate = toEl ? toEl.value : '';
+  var shopFilter = shopSel ? shopSel.value : 'all';
+  var prodFilter = prodSel ? prodSel.value : 'all';
+
+  var filtered = [];
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.status !== 'Delivered') continue;
+    if (fromDate && o.date < fromDate) continue;
+    if (toDate && o.date > toDate) continue;
+    if (shopFilter !== 'all' && o.shopId != shopFilter) continue;
+    // Product filter
+    if (prodFilter !== 'all') {
+      var hasProd = false;
+      for (var j = 0; j < o.items.length; j++) {
+        if (o.items[j].product === prodFilter) { hasProd = true; break; }
+      }
+      if (!hasProd) continue;
+    }
+    filtered.push(o);
+  }
+
+  // Summary
+  var totalOrders = filtered.length;
+  var totalKg = 0;
+  var totalProducts = 0;
+  var productMap = {};
+  var shopMap = {};
+
+  for (var i = 0; i < filtered.length; i++) {
+    var o = filtered[i];
+    var orderKg = 0;
+    for (var j = 0; j < o.items.length; j++) {
+      var it = o.items[j];
+      var m = parseInt(it.maund) || 0;
+      var k = parseInt(it.kg) || 0;
+      // Use original order qty (not just delivered)
+      if (prodFilter !== 'all' && it.product !== prodFilter) continue;
+      var rowKg = m * 40 + k;
+      orderKg += rowKg;
+      totalProducts++;
+      if (!productMap[it.product]) productMap[it.product] = { kg: 0, maund: 0, kgList: [], orders: 0 };
+      productMap[it.product].kg += rowKg;
+      productMap[it.product].maund += m;
+      if (k > 0) productMap[it.product].kgList.push(k);
+      productMap[it.product].orders++;
+    }
+    totalKg += orderKg;
+    if (!shopMap[o.shopId]) shopMap[o.shopId] = { orders: 0, kg: 0 };
+    shopMap[o.shopId].orders++;
+    shopMap[o.shopId].kg += orderKg;
+  }
+
+  document.getElementById('salesTotalOrders').textContent = totalOrders;
+  document.getElementById('salesTotalLoad').textContent = totalKgText(totalKg);
+  document.getElementById('salesTotalProducts').textContent = totalProducts;
+
+  // Product wise list
+  var prodList = document.getElementById('salesProductWiseList');
+  var prodKeys = Object.keys(productMap);
+  prodKeys.sort(function(a, b) { return productMap[b].kg - productMap[a].kg; });
+  document.getElementById('productWiseCount').textContent = prodKeys.length;
+  if (prodKeys.length === 0) {
+    prodList.innerHTML = '<div class="empty"><i class="fa fa-box"></i>Is period mein koi sale nahi.</div>';
+  } else {
+    var html = '';
+    for (var p = 0; p < prodKeys.length; p++) {
+      var pName = prodKeys[p];
+      var pd = productMap[pName];
+      var mTotal = Math.floor(pd.kg / 40);
+      var kTotal = pd.kg % 40;
+      var qtyParts = [];
+      if (mTotal > 0) qtyParts.push(mTotal + ' maund');
+      if (kTotal > 0) qtyParts.push(kTotal + ' kg');
+      var qtyStr = qtyParts.join(', ') || '0 kg';
+      html += '<div class="sales-row" onclick="openSalesProductDetail(\'' + pName.replace(/'/g, "\\'") + '\')">' +
+        '<div class="sr-name"><i class="fa fa-box"></i> ' + pName + '</div>' +
+        '<div class="sr-stats">' +
+          '<span class="sr-badge">' + qtyStr + '</span>' +
+          '<span class="sr-badge blue">' + pd.orders + ' orders</span>' +
+          '<i class="fa fa-chevron-right sr-arrow"></i>' +
+        '</div>' +
+      '</div>';
+    }
+    prodList.innerHTML = html;
+  }
+
+  // Shopkeeper wise list
+  var shopList = document.getElementById('salesShopWiseList');
+  var shopKeys = Object.keys(shopMap);
+  shopKeys.sort(function(a, b) { return shopMap[b].kg - shopMap[a].kg; });
+  document.getElementById('shopWiseCount').textContent = shopKeys.length;
+  if (shopKeys.length === 0) {
+    shopList.innerHTML = '<div class="empty"><i class="fa fa-store"></i>Is period mein koi order nahi.</div>';
+  } else {
+    var html2 = '';
+    for (var s = 0; s < shopKeys.length; s++) {
+      var sid = shopKeys[s];
+      var sd = shopMap[sid];
+      var shopName = 'Unknown';
+      for (var i = 0; i < shopkeepers.length; i++) {
+        if (shopkeepers[i].id == sid) { shopName = shopkeepers[i].name; break; }
+      }
+      html2 += '<div class="sales-row" onclick="openSalesShopDetail(\'' + sid + '\')">' +
+        '<div class="sr-name"><i class="fa fa-store"></i> ' + shopName + '</div>' +
+        '<div class="sr-stats">' +
+          '<span class="sr-badge">' + totalKgText(sd.kg) + '</span>' +
+          '<span class="sr-badge blue">' + sd.orders + ' orders</span>' +
+          '<i class="fa fa-chevron-right sr-arrow"></i>' +
+        '</div>' +
+      '</div>';
+    }
+    shopList.innerHTML = html2;
+  }
+}
+
+function openSalesProductDetail(productName) {
+  var fromDate = document.getElementById('salesFromDate').value;
+  var toDate = document.getElementById('salesToDate').value;
+  document.getElementById('salesProductModalTitle').textContent = productName + ' - Detail';
+  var filtered = [];
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.status !== 'Delivered') continue;
+    if (fromDate && o.date < fromDate) continue;
+    if (toDate && o.date > toDate) continue;
+    for (var j = 0; j < o.items.length; j++) {
+      if (o.items[j].product === productName) {
+        filtered.push({ order: o, item: o.items[j] });
+        break;
+      }
+    }
+  }
+  var body = document.getElementById('salesProductModalBody');
+  if (filtered.length === 0) {
+    body.innerHTML = '<div class="empty">Koi order nahi.</div>';
+  } else {
+    var html = '';
+    for (var i = 0; i < filtered.length; i++) {
+      var fo = filtered[i];
+      var shopName = 'Unknown';
+      for (var j = 0; j < shopkeepers.length; j++) {
+        if (shopkeepers[j].id == fo.order.shopId) { shopName = shopkeepers[j].name; break; }
+      }
+      var it = fo.item;
+      html += '<div class="sales-detail-row">' +
+        '<div>' +
+          '<div style="font-weight:700;color:#1e293b;">' + shopName + '</div>' +
+          '<div class="sd-date">' + formatDate(fo.order.date) + '</div>' +
+        '</div>' +
+        '<div class="sd-total">' + qtyText(it.maund, it.kg) + '</div>' +
+      '</div>';
+    }
+    body.innerHTML = html;
+  }
+  document.getElementById('salesProductModal').classList.add('active');
+}
+function closeSalesProductModal() {
+  document.getElementById('salesProductModal').classList.remove('active');
+}
+
+function openSalesShopDetail(shopId) {
+  var fromDate = document.getElementById('salesFromDate').value;
+  var toDate = document.getElementById('salesToDate').value;
+  var shopName = 'Unknown';
+  for (var i = 0; i < shopkeepers.length; i++) {
+    if (shopkeepers[i].id == shopId) { shopName = shopkeepers[i].name; break; }
+  }
+  document.getElementById('salesShopModalTitle').textContent = shopName + ' - Orders';
+  var filtered = [];
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.status !== 'Delivered') continue;
+    if (o.shopId != shopId) continue;
+    if (fromDate && o.date < fromDate) continue;
+    if (toDate && o.date > toDate) continue;
+    filtered.push(o);
+  }
+  filtered.reverse();
+  var body = document.getElementById('salesShopModalBody');
+  if (filtered.length === 0) {
+    body.innerHTML = '<div class="empty">Koi order nahi.</div>';
+  } else {
+    var html = '';
+    for (var i = 0; i < filtered.length; i++) {
+      var o = filtered[i];
+      var itemsHtml = '';
+      var totalKg = 0;
+      for (var j = 0; j < o.items.length; j++) {
+        var it = o.items[j];
+        var rowKg = (parseInt(it.maund) || 0) * 40 + (parseInt(it.kg) || 0);
+        totalKg += rowKg;
+        itemsHtml += '<div class="sales-detail-row">' +
+          '<div class="sd-items">📦 ' + it.product + '</div>' +
+          '<div class="sd-total">' + qtyText(it.maund, it.kg) + '</div>' +
+        '</div>';
+      }
+      html += '<div style="margin-bottom:14px;border-bottom:1px dashed #e2e8f0;padding-bottom:10px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+          '<strong style="color:#16a34a;">' + formatDate(o.date) + '</strong>' +
+          '<span class="sd-total">' + totalKgText(totalKg) + '</span>' +
+        '</div>' +
+        itemsHtml +
+      '</div>';
+    }
+    body.innerHTML = html;
+  }
+  document.getElementById('salesShopModal').classList.add('active');
+}
+function closeSalesShopModal() {
+  document.getElementById('salesShopModal').classList.remove('active');
+}
+
 function renderHistory() {
   var searchEl = document.getElementById('historySearch');
   var dateEl = document.getElementById('historyDate');
