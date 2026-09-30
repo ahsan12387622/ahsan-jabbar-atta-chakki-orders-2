@@ -417,6 +417,56 @@ h4 { font-size: 14px; }
 .deliver-qty-row label { font-size: 12px; }
 .deliver-qty-row input { padding: 10px; font-size: 14px; }
 
+/* ===== TODAY'S PENDING SHOPKEEPER LIST (Dashboard) ===== */
+.pending-shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pending-shop-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-left: 5px solid #f59e0b;
+  border-radius: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: 0.2s;
+  font-weight: 700;
+  font-size: 16px;
+  color: #92400e;
+}
+.pending-shop-name:hover {
+  background: #fde68a;
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(245,158,11,0.25);
+}
+.pending-shop-name i.shop-icon {
+  color: #f59e0b;
+  margin-right: 10px;
+  font-size: 18px;
+}
+.pending-shop-name i.arrow-icon {
+  color: #b45309;
+  font-size: 14px;
+}
+.pending-shop-name .name-text {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.pending-shop-name .order-count {
+  background: #f59e0b;
+  color: #fff;
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  margin-right: 10px;
+  font-weight: 700;
+}
+
 /* MOBILE */
 body.mobile-mode .sidebar { transform: translateX(-100%); width: 280px; }
 body.mobile-mode .sidebar.open { transform: translateX(0); }
