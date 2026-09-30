@@ -834,11 +834,35 @@ function renderShopkeepers() {
 }
 
 // ================== DELIVERY ROUTES ==================
+// Auto route name generate karo
+function generateRouteName() {
+  var nextNum = routes.length + 1;
+  // Check karo ke koi mojood route "Route N" ke naam se nahi hai
+  var names = {};
+  for (var i = 0; i < routes.length; i++) names[routes[i].name] = true;
+  while (names['Route ' + nextNum]) nextNum++;
+  return 'Route ' + nextNum;
+}
+
+function updateRouteNameField() {
+  var el = document.getElementById('routeName');
+  if (!el) return;
+  var id = document.getElementById('routeId').value;
+  if (id) {
+    // Editing mode — current name dikhao
+    for (var i = 0; i < routes.length; i++) {
+      if (routes[i].id == id) { el.value = routes[i].name; return; }
+    }
+  }
+  // New mode — next auto name
+  el.value = generateRouteName();
+}
+
 function saveRoute() {
   if (!can('routes')) { alert('Permission nahi hai'); return; }
   var id = document.getElementById('routeId').value;
   var name = document.getElementById('routeName').value.trim();
-  if (!name) { alert('Route ka naam daalein!'); return; }
+  if (!name) name = generateRouteName();
   if (selectedRouteShops.length === 0) { alert('Kam az kam ek shopkeeper chunein!'); return; }
 
   if (id) {
@@ -865,7 +889,7 @@ function saveRoute() {
     db.collection('routes').add(newRoute).then(function(ref) {
       newRoute.id = ref.id;
       routes.push(newRoute);
-      alert('Route ban gaya!');
+      alert('Route ban gaya: ' + name);
       resetRouteForm(); renderRoutes(); renderDashboardRoutes();
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
@@ -873,9 +897,9 @@ function saveRoute() {
 
 function resetRouteForm() {
   document.getElementById('routeId').value = '';
-  document.getElementById('routeName').value = '';
   selectedRouteShops = [];
   document.getElementById('routeFormTitle').textContent = 'Naya Route Banayein';
+  updateRouteNameField();
   renderRouteShopPicker();
 }
 
@@ -904,6 +928,7 @@ function deleteRoute(id) {
   }
   routes = newList;
   renderRoutes(); renderDashboardRoutes();
+  updateRouteNameField();
 }
 
 function renderRouteShopPicker() {
@@ -925,6 +950,7 @@ function renderRouteShopPicker() {
   box.innerHTML = html;
 }
 
+// FIX: selectedRouteShops ka data rakhne ke liye — poora re-render NAHI karo
 function toggleRouteShop(shopId, checked) {
   if (checked) {
     if (selectedRouteShops.indexOf(shopId) === -1) selectedRouteShops.push(shopId);
@@ -932,12 +958,22 @@ function toggleRouteShop(shopId, checked) {
     var idx = selectedRouteShops.indexOf(shopId);
     if (idx !== -1) selectedRouteShops.splice(idx, 1);
   }
-  renderRouteShopPicker();
+  // Sirf parent label ko update karo — pura grid re-render nahi
+  var items = document.querySelectorAll('.route-shop-item');
+  for (var i = 0; i < items.length; i++) {
+    var cb = items[i].querySelector('input[type="checkbox"]');
+    if (!cb) continue;
+    if (cb.getAttribute('onchange').indexOf("'" + shopId + "'") !== -1) {
+      if (checked) items[i].classList.add('selected');
+      else items[i].classList.remove('selected');
+    }
+  }
 }
 
 function renderRoutes() {
   var list = document.getElementById('routesList');
   if (!list) return;
+  updateRouteNameField();
   if (routes.length === 0) {
     list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi bana.</div>';
     return;
@@ -963,11 +999,9 @@ function renderRoutes() {
   list.innerHTML = html;
 }
 
-// Route ke pending items ka total nikaalo
 function getRouteStats(route) {
   var totalKg = 0;
   var pendingShopCount = 0;
-  var today = todayStr();
   var shopIds = route.shopIds || [];
   for (var i = 0; i < shopIds.length; i++) {
     var sid = shopIds[i];
@@ -976,7 +1010,6 @@ function getRouteStats(route) {
       var o = orders[j];
       if (o.shopId != sid) continue;
       if (o.status !== 'Pending' && o.status !== 'Partial') continue;
-      // Aaj ke ya purane pending (jo auto-shift ho kar aaj aaye)
       hasPending = true;
       for (var k = 0; k < o.items.length; k++) {
         var it = o.items[k];
@@ -1000,7 +1033,7 @@ function renderDashboardRoutes() {
   if (!list) return;
   if (routes.length === 0) {
     if (badge) badge.textContent = '0';
-    list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi. "Delivery Routes" page se banao.</div>';
+    list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi. "Delivery Route Add" se banao.</div>';
     return;
   }
   if (badge) badge.textContent = routes.length;
@@ -1050,7 +1083,6 @@ function openRouteModal(routeId) {
     }
     if (!shop) continue;
 
-    // Is shop ke saare pending orders (kisi bhi date ke)
     var shopItems = [];
     for (var j = 0; j < orders.length; j++) {
       var o = orders[j];
@@ -1091,7 +1123,6 @@ function openRouteModal(routeId) {
     '</div>';
   }
 
-  // Grand total
   html += '<div class="load-summary" style="margin-top:18px;margin-bottom:0;">' +
     '<div><p>Route Ka Total Load</p><div class="big-num">' + totalKgText(grandTotalKg) + '</div></div>' +
     '<div style="text-align:right;"><p>Shopkeepers</p><div class="big-num">' + shopIds.length + '</div></div>' +
