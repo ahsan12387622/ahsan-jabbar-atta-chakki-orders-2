@@ -53,7 +53,8 @@ var selectedShopIdForOrder = null;
 var selectedProductForOrder = null;
 var selectedEditIndex = -1;
 var currentOrderItems = [];
-var selectedRouteShops = [];
+// Route editor: { shopId: [product1, product2, ...] }
+var selectedRouteItems = {};
 
 var currentPendingShopId = null;
 var currentPendingProducts = [];
@@ -124,10 +125,42 @@ function loadAllData(callback) {
 
   db.collection('routes').get().then(function(snap) {
     routes = [];
-    snap.forEach(function(doc) { var d = doc.data(); d.id = doc.id; routes.push(d); });
+    snap.forEach(function(doc) {
+      var d = doc.data();
+      d.id = doc.id;
+      // Auto-migrate old format (shopIds) to new format (items)
+      if (!d.items || !Array.isArray(d.items)) {
+        d.items = [];
+        if (d.shopIds && Array.isArray(d.shopIds)) {
+          for (var i = 0; i < d.shopIds.length; i++) {
+            var sid = d.shopIds[i];
+            // Add every product this shopkeeper has today pending
+            var today = todayStr();
+            var added = {};
+            for (var j = 0; j < orders.length; j++) {
+              var o = orders[j];
+              if (o.shopId != sid) continue;
+              if (o.date !== today) continue;
+              if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+              for (var k = 0; k < o.items.length; k++) {
+                var p = o.items[k].product;
+                if (!added[p]) {
+                  d.items.push({ shopId: sid, product: p });
+                  added[p] = true;
+                }
+              }
+            }
+          }
+          // Save migrated data
+          saveToFirebase('routes', d.id, d);
+        }
+        d.shopIds = undefined;
+      }
+      routes.push(d);
+    });
     console.log('Routes:', routes.length);
     done();
-  }).catch(function(e) { done(); });
+  }).catch(function(e) { console.log(e); done(); });
 }
 
 function saveToFirebase(collection, id, data) {
@@ -168,7 +201,6 @@ function loadLayouts() {
       }
       if (!exists) dashboardLayout.push(JSON.parse(JSON.stringify(DEFAULT_DASHBOARD[i])));
     }
-    // Ensure each has view property
     for (var i = 0; i < dashboardLayout.length; i++) {
       if (!dashboardLayout[i].view) dashboardLayout[i].view = 'grid';
     }
@@ -374,8 +406,6 @@ function applyDashboardLayout() {
       el.style.marginLeft = 'auto';
       el.style.marginRight = 'auto';
     }
-
-    // Apply Grid/List view
     var view = item.view || 'grid';
     if (item.key === 'bigButtons') {
       var bb = document.getElementById('bigButtonsWrap');
@@ -391,7 +421,6 @@ function applyDashboardLayout() {
         else cw.classList.remove('list-view');
       }
     }
-    // Other sections (pendingShops, load, routes) already list by default
   }
 }
 
@@ -522,35 +551,47 @@ function getShopById(shopId) {
 function cleanupRouteAfterDelivery() {
   if (!firebaseReady) return;
   var routesChanged = false;
+  var today = todayStr();
+
   for (var r = routes.length - 1; r >= 0; r--) {
     var route = routes[r];
-    var ids = (route.shopIds || []).slice();
-    var newIds = [];
-    for (var i = 0; i < ids.length; i++) {
-      var sid = ids[i];
-      var hasPending = false;
+    var items = (route.items || []).slice();
+    var newItems = [];
+
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      // Check: is shopId + product still pending?
+      var stillPending = false;
       for (var j = 0; j < orders.length; j++) {
         var o = orders[j];
-        if (o.shopId != sid) continue;
+        if (o.shopId != it.shopId) continue;
         if (o.status !== 'Pending' && o.status !== 'Partial') continue;
-        hasPending = true;
-        break;
+        for (var k = 0; k < o.items.length; k++) {
+          var oi = o.items[k];
+          if (oi.product !== it.product) continue;
+          var remM = (parseInt(oi.maund) || 0) - (parseInt(oi.deliveredMaund) || 0);
+          var remK = (parseInt(oi.kg) || 0) - (parseInt(oi.deliveredKg) || 0);
+          if (remM > 0 || remK > 0) { stillPending = true; break; }
+        }
+        if (stillPending) break;
       }
-      if (hasPending) newIds.push(sid);
+      if (stillPending) newItems.push(it);
     }
-    if (newIds.length !== ids.length) {
-      if (newIds.length === 0) {
+
+    if (newItems.length !== items.length) {
+      if (newItems.length === 0) {
         deleteFromFirebase('routes', route.id);
         routes.splice(r, 1);
         routesChanged = true;
       } else {
-        route.shopIds = newIds;
+        route.items = newItems;
         route.updatedAt = new Date().toISOString();
         saveToFirebase('routes', route.id, route);
         routesChanged = true;
       }
     }
   }
+
   if (routesChanged) {
     renderRoutes();
     renderDashboardRoutes();
@@ -1281,8 +1322,12 @@ function renderPendingShopkeeperList() {
       if (shopkeepers[i].id == sid) shopName = shopkeepers[i].name;
     }
     var count = grouped[sid];
+    var summaryText = getShopOrderSummaryText(sid);
     html += '<div class="pending-shop-name" onclick="openPendingShopModal(\'' + sid + '\')">' +
-      '<span class="name-text"><i class="fa fa-store shop-icon"></i> ' + shopName + '</span>' +
+      '<div class="psn-info">' +
+        '<span class="name-text"><i class="fa fa-store shop-icon"></i> ' + shopName + '</span>' +
+        (summaryText ? '<span class="psn-summary">📦 ' + summaryText + '</span>' : '') +
+      '</div>' +
       '<span><span class="order-count">' + count + '</span><i class="fa fa-chevron-right arrow-icon"></i></span></div>';
   }
   list.innerHTML = html;
@@ -1599,7 +1644,7 @@ function renderShopkeepers() {
   }
 }
 
-// ================== DELIVERY ROUTES ==================
+// ================== DELIVERY ROUTES (product level) ==================
 function generateRouteName() {
   var nextNum = routes.length + 1;
   var names = {};
@@ -1629,132 +1674,9 @@ function shopHasTodayPendingOrder(shopId) {
   }
   return false;
 }
-function saveRoute() {
-  if (!can('routes')) { alert('Permission nahi hai'); return; }
-  var id = document.getElementById('routeId').value;
-  var name = document.getElementById('routeName').value.trim();
-  if (!name) name = generateRouteName();
-  if (selectedRouteShops.length === 0) { alert('Kam az kam ek shopkeeper chunein!'); return; }
-  var currentRouteId = id || null;
-  for (var r = 0; r < routes.length; r++) {
-    var route = routes[r];
-    if (route.id === currentRouteId) continue;
-    var ids = (route.shopIds || []).slice();
-    var changed = false;
-    var newIds = [];
-    for (var i = 0; i < ids.length; i++) {
-      if (selectedRouteShops.indexOf(ids[i]) !== -1) changed = true;
-      else newIds.push(ids[i]);
-    }
-    if (changed) {
-      route.shopIds = newIds;
-      saveToFirebase('routes', route.id, route);
-    }
-  }
-  if (id) {
-    for (var i = 0; i < routes.length; i++) {
-      if (routes[i].id == id) {
-        routes[i].name = name;
-        routes[i].shopIds = selectedRouteShops.slice();
-        routes[i].updatedAt = new Date().toISOString();
-        saveToFirebase('routes', routes[i].id, routes[i]);
-      }
-    }
-    alert('Route update ho gaya!');
-    resetRouteForm(); renderRoutes(); renderDashboardRoutes();
-    showPage('dashboard');
-    return;
-  }
-  var newRoute = {
-    name: name,
-    shopIds: selectedRouteShops.slice(),
-    createdBy: currentUser ? currentUser.user : 'unknown',
-    createdAt: new Date().toISOString()
-  };
-  if (firebaseReady) {
-    db.collection('routes').add(newRoute).then(function(ref) {
-      newRoute.id = ref.id;
-      routes.push(newRoute);
-      alert('Route ban gaya: ' + name);
-      resetRouteForm(); renderRoutes(); renderDashboardRoutes();
-      showPage('dashboard');
-    }).catch(function(e) { alert('Error: ' + e.message); });
-  }
-}
-function resetRouteForm() {
-  document.getElementById('routeId').value = '';
-  selectedRouteShops = [];
-  document.getElementById('routeFormTitle').textContent = 'Naya Route Banayein';
-  updateRouteNameField();
-  renderRouteShopPicker();
-}
-function editRoute(id) {
-  if (!can('routes')) { alert('Permission nahi hai'); return; }
-  for (var i = 0; i < routes.length; i++) {
-    if (routes[i].id == id) {
-      var r = routes[i];
-      document.getElementById('routeId').value = r.id;
-      document.getElementById('routeName').value = r.name;
-      selectedRouteShops = (r.shopIds || []).slice();
-      document.getElementById('routeFormTitle').textContent = 'Route Edit Karein';
-      renderRouteShopPicker();
-      window.scrollTo(0, 0);
-    }
-  }
-}
-function deleteRoute(id) {
-  if (!can('routes')) { alert('Permission nahi hai'); return; }
-  if (!confirm('Pakka route delete?')) return;
-  var newList = [];
-  for (var i = 0; i < routes.length; i++) {
-    if (routes[i].id != id) newList.push(routes[i]);
-    else deleteFromFirebase('routes', routes[i].id);
-  }
-  routes = newList;
-  renderRoutes(); renderDashboardRoutes();
-  updateRouteNameField();
-}
-function renderRouteShopPicker() {
-  var box = document.getElementById('routeShopPicker');
-  if (!box) return;
-  var currentRouteId = document.getElementById('routeId').value || null;
-  var visible = [];
-  for (var i = 0; i < shopkeepers.length; i++) {
-    var s = shopkeepers[i];
-    var hasOrder = shopHasTodayPendingOrder(s.id);
-    if (hasOrder) visible.push(s);
-  }
-  if (visible.length === 0) {
-    box.innerHTML = '<div class="route-empty-hint"><i class="fa fa-inbox"></i>Aaj koi shopkeeper ka pending order nahi hai.</div>';
-    return;
-  }
-  var html = '';
-  for (var i = 0; i < visible.length; i++) {
-    var s = visible[i];
-    var selected = selectedRouteShops.indexOf(s.id) !== -1;
-    var otherRoute = null;
-    for (var r = 0; r < routes.length; r++) {
-      if (routes[r].id === currentRouteId) continue;
-      var ids = routes[r].shopIds || [];
-      if (ids.indexOf(s.id) !== -1) { otherRoute = routes[r]; break; }
-    }
-    var routeBadge = '';
-    if (otherRoute && !selected) {
-      routeBadge = '<span class="other-route-badge">📍 ' + otherRoute.name + '</span>';
-    }
-    var orderSummaryText = getShopOrderSummaryText(s.id);
-    html += '<label class="route-shop-item ' + (selected ? 'selected' : '') + '">' +
-      '<input type="checkbox" ' + (selected ? 'checked' : '') + ' onchange="toggleRouteShop(\'' + s.id + '\', this.checked)" />' +
-      '<span class="shop-info">' +
-        '<span class="shop-name-line"><i class="fa fa-store"></i> ' + s.name + '</span>' +
-        (orderSummaryText ? '<span class="shop-order-summary">📦 ' + orderSummaryText + '</span>' : '') +
-      '</span>' +
-      routeBadge +
-      '</label>';
-  }
-  box.innerHTML = html;
-}
-function getShopOrderSummaryText(shopId) {
+
+// Get shopkeeper's today-pending products list (with quantity)
+function getShopTodayProducts(shopId) {
   var today = todayStr();
   var productMap = {};
   var productOrder = [];
@@ -1777,36 +1699,249 @@ function getShopOrderSummaryText(shopId) {
       if (remK > 0) productMap[pName].kgList.push(remK);
     }
   }
-  var parts = [];
+  var result = [];
   for (var p = 0; p < productOrder.length; p++) {
     var name = productOrder[p];
-    var data = productMap[name];
+    var d = productMap[name];
     var qtyParts = [];
-    if (data.maund > 0) qtyParts.push(data.maund + ' maund');
-    for (var k = 0; k < data.kgList.length; k++) qtyParts.push(data.kgList[k] + ' kg');
-    if (qtyParts.length === 0) continue;
-    parts.push(name + ': ' + qtyParts.join(', '));
+    if (d.maund > 0) qtyParts.push(d.maund + ' maund');
+    for (var k = 0; k < d.kgList.length; k++) qtyParts.push(d.kgList[k] + ' kg');
+    result.push({ product: name, qtyStr: qtyParts.join(', ') || '0 kg' });
+  }
+  return result;
+}
+
+function getShopOrderSummaryText(shopId) {
+  var prods = getShopTodayProducts(shopId);
+  var parts = [];
+  for (var i = 0; i < prods.length; i++) {
+    parts.push(prods[i].product + ': ' + prods[i].qtyStr);
   }
   return parts.join(' • ');
 }
-function toggleRouteShop(shopId, checked) {
-  if (checked) {
-    if (selectedRouteShops.indexOf(shopId) === -1) selectedRouteShops.push(shopId);
-  } else {
-    var idx = selectedRouteShops.indexOf(shopId);
-    if (idx !== -1) selectedRouteShops.splice(idx, 1);
+
+function saveRoute() {
+  if (!can('routes')) { alert('Permission nahi hai'); return; }
+  var id = document.getElementById('routeId').value;
+  var name = document.getElementById('routeName').value.trim();
+  if (!name) name = generateRouteName();
+
+  // Build items array from selectedRouteItems
+  var items = [];
+  var shopIds = Object.keys(selectedRouteItems);
+  for (var i = 0; i < shopIds.length; i++) {
+    var sid = shopIds[i];
+    var prods = selectedRouteItems[sid] || [];
+    for (var j = 0; j < prods.length; j++) {
+      items.push({ shopId: sid, product: prods[j] });
+    }
   }
-  var items = document.querySelectorAll('.route-shop-item');
-  for (var i = 0; i < items.length; i++) {
-    var cb = items[i].querySelector('input[type="checkbox"]');
-    if (!cb) continue;
-    var oc = cb.getAttribute('onchange') || '';
-    if (oc.indexOf("'" + shopId + "'") !== -1) {
-      if (checked) items[i].classList.add('selected');
-      else items[i].classList.remove('selected');
+  if (items.length === 0) { alert('Kam az kam ek product chunein!'); return; }
+
+  // Remove these shop+product combos from OTHER routes
+  var currentRouteId = id || null;
+  for (var r = 0; r < routes.length; r++) {
+    var route = routes[r];
+    if (route.id === currentRouteId) continue;
+    var rItems = (route.items || []).slice();
+    var newItems = [];
+    var changed = false;
+    for (var i = 0; i < rItems.length; i++) {
+      var ri = rItems[i];
+      var conflict = false;
+      for (var j = 0; j < items.length; j++) {
+        if (items[j].shopId === ri.shopId && items[j].product === ri.product) {
+          conflict = true; break;
+        }
+      }
+      if (conflict) changed = true;
+      else newItems.push(ri);
+    }
+    if (changed) {
+      if (newItems.length === 0) {
+        deleteFromFirebase('routes', route.id);
+        routes.splice(r, 1);
+        r--;
+      } else {
+        route.items = newItems;
+        route.updatedAt = new Date().toISOString();
+        saveToFirebase('routes', route.id, route);
+      }
+    }
+  }
+
+  if (id) {
+    for (var i = 0; i < routes.length; i++) {
+      if (routes[i].id == id) {
+        routes[i].name = name;
+        routes[i].items = items.slice();
+        routes[i].updatedAt = new Date().toISOString();
+        delete routes[i].shopIds;
+        saveToFirebase('routes', routes[i].id, routes[i]);
+      }
+    }
+    alert('Route update ho gaya!');
+    resetRouteForm(); renderRoutes(); renderDashboardRoutes();
+    showPage('dashboard');
+    return;
+  }
+
+  var newRoute = {
+    name: name,
+    items: items,
+    createdBy: currentUser ? currentUser.user : 'unknown',
+    createdAt: new Date().toISOString()
+  };
+  if (firebaseReady) {
+    db.collection('routes').add(newRoute).then(function(ref) {
+      newRoute.id = ref.id;
+      routes.push(newRoute);
+      alert('Route ban gaya: ' + name);
+      resetRouteForm(); renderRoutes(); renderDashboardRoutes();
+      showPage('dashboard');
+    }).catch(function(e) { alert('Error: ' + e.message); });
+  }
+}
+
+function resetRouteForm() {
+  document.getElementById('routeId').value = '';
+  selectedRouteItems = {};
+  document.getElementById('routeFormTitle').textContent = 'Naya Route Banayein';
+  updateRouteNameField();
+  renderRouteShopPicker();
+}
+
+function editRoute(id) {
+  if (!can('routes')) { alert('Permission nahi hai'); return; }
+  for (var i = 0; i < routes.length; i++) {
+    if (routes[i].id == id) {
+      var r = routes[i];
+      document.getElementById('routeId').value = r.id;
+      document.getElementById('routeName').value = r.name;
+      selectedRouteItems = {};
+      var rItems = r.items || [];
+      for (var j = 0; j < rItems.length; j++) {
+        var it = rItems[j];
+        if (!selectedRouteItems[it.shopId]) selectedRouteItems[it.shopId] = [];
+        selectedRouteItems[it.shopId].push(it.product);
+      }
+      document.getElementById('routeFormTitle').textContent = 'Route Edit Karein';
+      renderRouteShopPicker();
+      window.scrollTo(0, 0);
     }
   }
 }
+
+function deleteRoute(id) {
+  if (!can('routes')) { alert('Permission nahi hai'); return; }
+  if (!confirm('Pakka route delete?')) return;
+  var newList = [];
+  for (var i = 0; i < routes.length; i++) {
+    if (routes[i].id != id) newList.push(routes[i]);
+    else deleteFromFirebase('routes', routes[i].id);
+  }
+  routes = newList;
+  renderRoutes(); renderDashboardRoutes();
+  updateRouteNameField();
+}
+
+function renderRouteShopPicker() {
+  var box = document.getElementById('routeShopPicker');
+  if (!box) return;
+  var currentRouteId = document.getElementById('routeId').value || null;
+
+  // Only shops with pending orders today
+  var visible = [];
+  for (var i = 0; i < shopkeepers.length; i++) {
+    var s = shopkeepers[i];
+    if (shopHasTodayPendingOrder(s.id)) visible.push(s);
+  }
+
+  if (visible.length === 0) {
+    box.innerHTML = '<div class="route-empty-hint"><i class="fa fa-inbox"></i>Aaj koi shopkeeper ka pending order nahi hai.</div>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < visible.length; i++) {
+    var s = visible[i];
+    var shopProducts = getShopTodayProducts(s.id);
+    var selectedProducts = selectedRouteItems[s.id] || [];
+    var shopSelected = selectedProducts.length > 0;
+
+    // Find other route
+    var otherRoute = null;
+    for (var r = 0; r < routes.length; r++) {
+      if (routes[r].id === currentRouteId) continue;
+      var rItems = routes[r].items || [];
+      for (var ri = 0; ri < rItems.length; ri++) {
+        if (rItems[ri].shopId === s.id) { otherRoute = routes[r]; break; }
+      }
+      if (otherRoute) break;
+    }
+
+    var routeBadge = '';
+    if (otherRoute && !shopSelected) {
+      routeBadge = '<span class="other-route-badge">📍 ' + otherRoute.name + '</span>';
+    }
+
+    var shopClass = 'route-shop-block';
+    if (shopSelected) shopClass += ' selected';
+
+    html += '<div class="' + shopClass + '">' +
+      '<div class="route-shop-head">' +
+        '<input type="checkbox" ' + (shopSelected ? 'checked' : '') + ' onchange="toggleRouteShop(\'' + s.id + '\', this.checked)" />' +
+        '<span class="rsh-name"><i class="fa fa-store"></i> ' + s.name + '</span>' +
+        routeBadge +
+      '</div>' +
+      '<div class="route-shop-products ' + (shopSelected ? '' : 'shop-not-selected') + '">';
+
+    for (var p = 0; p < shopProducts.length; p++) {
+      var prod = shopProducts[p];
+      var isProdSelected = selectedProducts.indexOf(prod.product) !== -1;
+      var prodClass = 'route-product-item' + (isProdSelected ? ' selected' : '');
+      html += '<label class="' + prodClass + '">' +
+        '<input type="checkbox" ' + (isProdSelected ? 'checked' : '') + ' ' + (shopSelected ? '' : 'disabled') + ' onchange="toggleRouteProduct(\'' + s.id + '\', \'' + prod.product.replace(/'/g, "\\'") + '\', this.checked)" />' +
+        '<span class="rpi-name">📦 ' + prod.product + '</span>' +
+        '<span class="rpi-qty">' + prod.qtyStr + '</span>' +
+      '</label>';
+    }
+
+    html += '</div></div>';
+  }
+  box.innerHTML = html;
+}
+
+// Toggle entire shop — check/uncheck all products
+function toggleRouteShop(shopId, checked) {
+  if (checked) {
+    // Select all products of this shop
+    var shopProducts = getShopTodayProducts(shopId);
+    selectedRouteItems[shopId] = [];
+    for (var i = 0; i < shopProducts.length; i++) {
+      selectedRouteItems[shopId].push(shopProducts[i].product);
+    }
+  } else {
+    delete selectedRouteItems[shopId];
+  }
+  renderRouteShopPicker();
+}
+
+// Toggle single product
+function toggleRouteProduct(shopId, product, checked) {
+  if (!selectedRouteItems[shopId]) selectedRouteItems[shopId] = [];
+  var arr = selectedRouteItems[shopId];
+  var idx = arr.indexOf(product);
+  if (checked) {
+    if (idx === -1) arr.push(product);
+  } else {
+    if (idx !== -1) arr.splice(idx, 1);
+  }
+  // If all products unselected, unselect shop
+  if (arr.length === 0) delete selectedRouteItems[shopId];
+  renderRouteShopPicker();
+}
+
 function renderRoutes() {
   var list = document.getElementById('routesList');
   if (!list) return;
@@ -1825,7 +1960,7 @@ function renderRoutes() {
         '<div class="route-card-name"><i class="fa fa-route"></i> ' + r.name + '</div>' +
       '</div>' +
       '<div class="route-card-stats">' +
-        '<span class="route-stat"><i class="fa fa-store"></i> ' + (r.shopIds ? r.shopIds.length : 0) + ' shopkeepers</span>' +
+        '<span class="route-stat"><i class="fa fa-box"></i> ' + stats.itemCount + ' products</span>' +
         '<span class="route-stat green"><i class="fa fa-weight-hanging"></i> ' + stats.totalQtyText + '</span>' +
       '</div>' +
       (breakdownHtml ? '<div class="route-breakdown">' + breakdownHtml + '</div>' : '') +
@@ -1837,53 +1972,77 @@ function renderRoutes() {
   }
   list.innerHTML = html;
 }
+
 function getRouteStats(route) {
   var totalKg = 0;
   var totalMaund = 0;
-  var pendingShopCount = 0;
-  var shopIds = route.shopIds || [];
+  var itemCount = 0;
+  var uniqueShops = {};
+  var items = route.items || [];
   var productMap = {};
   var productOrder = [];
-  for (var i = 0; i < shopIds.length; i++) {
-    var sid = shopIds[i];
-    var hasPending = false;
+
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    itemCount++;
+    uniqueShops[it.shopId] = true;
+
+    // Sum up pending qty for this shopId + product
+    var shopProdKg = 0;
+    var shopProdMaund = 0;
+    var kgList = [];
     for (var j = 0; j < orders.length; j++) {
       var o = orders[j];
-      if (o.shopId != sid) continue;
+      if (o.shopId != it.shopId) continue;
       if (o.status !== 'Pending' && o.status !== 'Partial') continue;
-      hasPending = true;
       for (var k = 0; k < o.items.length; k++) {
-        var it = o.items[k];
-        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
-        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        var oi = o.items[k];
+        if (oi.product !== it.product) continue;
+        var remM = (parseInt(oi.maund) || 0) - (parseInt(oi.deliveredMaund) || 0);
+        var remK = (parseInt(oi.kg) || 0) - (parseInt(oi.deliveredKg) || 0);
         if (remM <= 0 && remK <= 0) continue;
-        totalKg += (remM * 40) + remK;
-        totalMaund += remM;
-        var pName = it.product;
-        if (!productMap[pName]) {
-          productMap[pName] = { maund: 0, kgList: [] };
-          productOrder.push(pName);
-        }
-        productMap[pName].maund += remM;
-        if (remK > 0) productMap[pName].kgList.push(remK);
+        shopProdKg += (remM * 40) + remK;
+        shopProdMaund += remM;
+        if (remK > 0) kgList.push(remK);
       }
     }
-    if (hasPending) pendingShopCount++;
+
+    totalKg += shopProdKg;
+    totalMaund += shopProdMaund;
+
+    // Add to product breakdown (combine same product across shops)
+    if (!productMap[it.product]) {
+      productMap[it.product] = { maund: 0, kgList: [] };
+      productOrder.push(it.product);
+    }
+    productMap[it.product].maund += shopProdMaund;
+    for (var x = 0; x < kgList.length; x++) productMap[it.product].kgList.push(kgList[x]);
   }
+
   var breakdown = [];
   for (var p = 0; p < productOrder.length; p++) {
     var name = productOrder[p];
     var data = productMap[name];
     breakdown.push({ product: name, maund: data.maund, kgList: data.kgList });
   }
+
+  // Pending shops count
+  var pendingShopCount = 0;
+  var shopIds = Object.keys(uniqueShops);
+  for (var i = 0; i < shopIds.length; i++) {
+    if (shopHasTodayPendingOrder(shopIds[i])) pendingShopCount++;
+  }
+
   return {
     totalKg: totalKg,
     totalMaund: totalMaund,
     totalQtyText: totalKgText(totalKg),
     pendingShopCount: pendingShopCount,
+    itemCount: itemCount,
     productBreakdown: breakdown
   };
 }
+
 function renderRouteProductBreakdown(breakdown) {
   if (!breakdown || breakdown.length === 0) return '';
   var html = '';
@@ -1900,16 +2059,20 @@ function renderRouteProductBreakdown(breakdown) {
   }
   return html;
 }
+
 function renderDashboardRoutes() {
   var list = document.getElementById('dashboardRoutesList');
   var badge = document.getElementById('routesBadge');
   if (!list) return;
+
   var visibleRoutes = [];
   for (var i = 0; i < routes.length; i++) {
     var stats = getRouteStats(routes[i]);
     if (stats.pendingShopCount > 0) visibleRoutes.push({ route: routes[i], stats: stats });
   }
+
   if (badge) badge.textContent = visibleRoutes.length;
+
   if (visibleRoutes.length === 0) {
     if (routes.length === 0) {
       list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi. "Delivery Route Add" se banao.</div>';
@@ -1918,6 +2081,7 @@ function renderDashboardRoutes() {
     }
     return;
   }
+
   var html = '';
   for (var i = 0; i < visibleRoutes.length; i++) {
     var r = visibleRoutes[i].route;
@@ -1929,8 +2093,8 @@ function renderDashboardRoutes() {
         '<i class="fa fa-chevron-right" style="color:#6366f1;"></i>' +
       '</div>' +
       '<div class="route-card-stats">' +
-        '<span class="route-stat"><i class="fa fa-store"></i> ' + (r.shopIds ? r.shopIds.length : 0) + ' shops</span>' +
-        '<span class="route-stat"><i class="fa fa-clock"></i> ' + stats.pendingShopCount + ' pending</span>' +
+        '<span class="route-stat"><i class="fa fa-box"></i> ' + stats.itemCount + ' products</span>' +
+        '<span class="route-stat"><i class="fa fa-clock"></i> ' + stats.pendingShopCount + ' pending shops</span>' +
         '<span class="route-stat green"><i class="fa fa-weight-hanging"></i> ' + stats.totalQtyText + '</span>' +
       '</div>' +
       (breakdownHtml ? '<div class="route-breakdown">' + breakdownHtml + '</div>' : '') +
@@ -1938,57 +2102,84 @@ function renderDashboardRoutes() {
   }
   list.innerHTML = html;
 }
+
 function openRouteModal(routeId) {
   var route = null;
   for (var i = 0; i < routes.length; i++) {
     if (routes[i].id == routeId) route = routes[i];
   }
   if (!route) return;
+
   document.getElementById('routeModalTitle').textContent = route.name;
   var body = document.getElementById('routeModalBody');
-  var shopIds = route.shopIds || [];
+  var items = route.items || [];
   var stats = getRouteStats(route);
-  if (shopIds.length === 0) {
-    body.innerHTML = '<div class="empty">Is route mein koi shopkeeper nahi.</div>';
+
+  if (items.length === 0) {
+    body.innerHTML = '<div class="empty">Is route mein koi product nahi.</div>';
     document.getElementById('routeModal').classList.add('active');
     return;
   }
+
+  // Group by shopId
+  var shopGroup = {};
+  var shopOrder = [];
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    if (!shopGroup[it.shopId]) {
+      shopGroup[it.shopId] = [];
+      shopOrder.push(it.shopId);
+    }
+    shopGroup[it.shopId].push(it.product);
+  }
+
   var html = '';
   var grandTotalKg = 0;
-  for (var i = 0; i < shopIds.length; i++) {
-    var sid = shopIds[i];
+
+  for (var i = 0; i < shopOrder.length; i++) {
+    var sid = shopOrder[i];
     var shop = null;
     for (var j = 0; j < shopkeepers.length; j++) {
-      if (shopkeepers[j].id == sid) shop = shopkeepers[j];
+      if (shopkeepers[j].id == sid) { shop = shopkeepers[j]; break; }
     }
     if (!shop) continue;
-    var productMap = {};
-    var productOrder = [];
+
+    var prods = shopGroup[sid];
+
+    // Build product-wise breakdown for this shop
     var shopTotalKg = 0;
-    for (var j = 0; j < orders.length; j++) {
-      var o = orders[j];
-      if (o.shopId != sid) continue;
-      if (o.status !== 'Pending' && o.status !== 'Partial') continue;
-      for (var k = 0; k < o.items.length; k++) {
-        var it = o.items[k];
-        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
-        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
-        if (remM <= 0 && remK <= 0) continue;
-        shopTotalKg += (remM * 40) + remK;
-        var pName = it.product;
-        if (!productMap[pName]) {
-          productMap[pName] = { maund: 0, kgList: [] };
-          productOrder.push(pName);
+    var productMap = {};
+    var productOrder2 = [];
+    for (var p = 0; p < prods.length; p++) {
+      var pName = prods[p];
+      var kgs = [];
+      var mTot = 0;
+      for (var j = 0; j < orders.length; j++) {
+        var o = orders[j];
+        if (o.shopId != sid) continue;
+        if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+        for (var k = 0; k < o.items.length; k++) {
+          var oi = o.items[k];
+          if (oi.product !== pName) continue;
+          var remM = (parseInt(oi.maund) || 0) - (parseInt(oi.deliveredMaund) || 0);
+          var remK = (parseInt(oi.kg) || 0) - (parseInt(oi.deliveredKg) || 0);
+          if (remM <= 0 && remK <= 0) continue;
+          mTot += remM;
+          shopTotalKg += (remM * 40) + remK;
+          if (remK > 0) kgs.push(remK);
         }
-        productMap[pName].maund += remM;
-        if (remK > 0) productMap[pName].kgList.push(remK);
       }
+      if (!productMap[pName]) { productMap[pName] = { maund: 0, kgList: [] }; productOrder2.push(pName); }
+      productMap[pName].maund += mTot;
+      for (var x = 0; x < kgs.length; x++) productMap[pName].kgList.push(kgs[x]);
     }
-    if (productOrder.length === 0) continue;
+
+    if (productOrder2.length === 0) continue;
     grandTotalKg += shopTotalKg;
+
     var itemsHtml = '';
-    for (var p = 0; p < productOrder.length; p++) {
-      var pName = productOrder[p];
+    for (var p = 0; p < productOrder2.length; p++) {
+      var pName = productOrder2[p];
       var pdata = productMap[pName];
       var qtyParts = [];
       if (pdata.maund > 0) qtyParts.push(pdata.maund + ' maund');
@@ -1999,6 +2190,7 @@ function openRouteModal(routeId) {
         '<span class="rp-qty">' + qtyStr + '</span>' +
       '</div>';
     }
+
     html += '<div class="route-detail-shop">' +
       '<div class="route-detail-shop-head">' +
         '<h4><i class="fa fa-store"></i> ' + shop.name + '</h4>' +
@@ -2008,12 +2200,15 @@ function openRouteModal(routeId) {
       '<div class="route-detail-items">' + itemsHtml + '</div>' +
     '</div>';
   }
+
   if (html === '') {
     body.innerHTML = '<div class="empty"><i class="fa fa-check-circle"></i>Is route ke sab orders deliver ho gaye!</div>';
     document.getElementById('routeModal').classList.add('active');
     return;
   }
+
   var breakdownHtml = renderRouteProductBreakdown(stats.productBreakdown);
+
   html += '<div class="load-summary route-total-summary" style="margin-top:18px;margin-bottom:0;">' +
     '<div style="width:100%;">' +
       '<p>Route Ka Total Load</p>' +
@@ -2022,9 +2217,10 @@ function openRouteModal(routeId) {
     '</div>' +
     '<div style="text-align:right;border-top:1px solid rgba(255,255,255,0.2);padding-top:12px;width:100%;margin-top:12px;">' +
       '<p>Shopkeepers</p>' +
-      '<div class="big-num">' + shopIds.length + '</div>' +
+      '<div class="big-num">' + shopOrder.length + '</div>' +
     '</div>' +
   '</div>';
+
   body.innerHTML = html;
   document.getElementById('routeModal').classList.add('active');
 }
@@ -2736,7 +2932,6 @@ function populateSalesFilters() {
     }
     if (curProd) prodSel.value = curProd;
   }
-  // Set default dates
   var fromEl = document.getElementById('salesFromDate');
   var toEl = document.getElementById('salesToDate');
   if (fromEl && !fromEl.value) {
@@ -2766,7 +2961,6 @@ function renderSalesReport() {
     if (fromDate && o.date < fromDate) continue;
     if (toDate && o.date > toDate) continue;
     if (shopFilter !== 'all' && o.shopId != shopFilter) continue;
-    // Product filter
     if (prodFilter !== 'all') {
       var hasProd = false;
       for (var j = 0; j < o.items.length; j++) {
@@ -2777,7 +2971,6 @@ function renderSalesReport() {
     filtered.push(o);
   }
 
-  // Summary
   var totalOrders = filtered.length;
   var totalKg = 0;
   var totalProducts = 0;
@@ -2791,15 +2984,12 @@ function renderSalesReport() {
       var it = o.items[j];
       var m = parseInt(it.maund) || 0;
       var k = parseInt(it.kg) || 0;
-      // Use original order qty (not just delivered)
       if (prodFilter !== 'all' && it.product !== prodFilter) continue;
       var rowKg = m * 40 + k;
       orderKg += rowKg;
       totalProducts++;
-      if (!productMap[it.product]) productMap[it.product] = { kg: 0, maund: 0, kgList: [], orders: 0 };
+      if (!productMap[it.product]) productMap[it.product] = { kg: 0, orders: 0 };
       productMap[it.product].kg += rowKg;
-      productMap[it.product].maund += m;
-      if (k > 0) productMap[it.product].kgList.push(k);
       productMap[it.product].orders++;
     }
     totalKg += orderKg;
@@ -2812,7 +3002,6 @@ function renderSalesReport() {
   document.getElementById('salesTotalLoad').textContent = totalKgText(totalKg);
   document.getElementById('salesTotalProducts').textContent = totalProducts;
 
-  // Product wise list
   var prodList = document.getElementById('salesProductWiseList');
   var prodKeys = Object.keys(productMap);
   prodKeys.sort(function(a, b) { return productMap[b].kg - productMap[a].kg; });
@@ -2824,12 +3013,7 @@ function renderSalesReport() {
     for (var p = 0; p < prodKeys.length; p++) {
       var pName = prodKeys[p];
       var pd = productMap[pName];
-      var mTotal = Math.floor(pd.kg / 40);
-      var kTotal = pd.kg % 40;
-      var qtyParts = [];
-      if (mTotal > 0) qtyParts.push(mTotal + ' maund');
-      if (kTotal > 0) qtyParts.push(kTotal + ' kg');
-      var qtyStr = qtyParts.join(', ') || '0 kg';
+      var qtyStr = totalKgText(pd.kg);
       html += '<div class="sales-row" onclick="openSalesProductDetail(\'' + pName.replace(/'/g, "\\'") + '\')">' +
         '<div class="sr-name"><i class="fa fa-box"></i> ' + pName + '</div>' +
         '<div class="sr-stats">' +
@@ -2842,7 +3026,6 @@ function renderSalesReport() {
     prodList.innerHTML = html;
   }
 
-  // Shopkeeper wise list
   var shopList = document.getElementById('salesShopWiseList');
   var shopKeys = Object.keys(shopMap);
   shopKeys.sort(function(a, b) { return shopMap[b].kg - shopMap[a].kg; });
