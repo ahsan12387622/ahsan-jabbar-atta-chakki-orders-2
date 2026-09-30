@@ -683,6 +683,7 @@ function openPendingShopModal(shopId) {
     }
   }
   document.getElementById('pendingShopTitle').textContent = shopName + ' - Aaj Ke Orders';
+  document.getElementById('pendingShopModal').setAttribute('data-shop-id', shopId);
 
   var sOrders = [];
   for (var i = 0; i < orders.length; i++) {
@@ -748,6 +749,35 @@ function openPendingShopModal(shopId) {
 
 function closePendingShopModal() {
   document.getElementById('pendingShopModal').classList.remove('active');
+  document.getElementById('pendingShopModal').removeAttribute('data-shop-id');
+}
+
+// Pending shop modal ko refresh karo bina band kiye
+function refreshPendingShopModal() {
+  var modal = document.getElementById('pendingShopModal');
+  if (!modal) return;
+  var currentShopId = modal.getAttribute('data-shop-id');
+  if (!currentShopId) { closePendingShopModal(); return; }
+
+  // Check karo kya is shop ka koi pending order baqi hai
+  var today = todayStr();
+  var stillPending = false;
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.shopId == currentShopId && o.date === today &&
+        (o.status === 'Pending' || o.status === 'Partial')) {
+      stillPending = true;
+      break;
+    }
+  }
+
+  if (!stillPending) {
+    // Saare orders deliver ho gaye — modal band karo
+    closePendingShopModal();
+  } else {
+    // Warna modal ko dobara render karo (same shop ke liye)
+    openPendingShopModal(currentShopId);
+  }
 }
 
 // ================== SHOPKEEPERS ==================
@@ -1142,11 +1172,13 @@ function confirmDelivery() {
   saveToFirebase('orders', order.id, order);
   closeDeliverModal();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
-  // Refresh pending shop modal if open
+
+  // Refresh pending shop modal (WITHOUT closing it) — taake user baar baar tap na kare
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) {
-    closePendingShopModal();
+    refreshPendingShopModal();
   }
+
   alert('Deliver ho gaya!');
 }
 function markAllDelivered() {
@@ -1166,10 +1198,13 @@ function markAllDelivered() {
   saveToFirebase('orders', order.id, order);
   closeDeliverModal();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+
+  // Refresh pending shop modal (WITHOUT closing it)
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) {
-    closePendingShopModal();
+    refreshPendingShopModal();
   }
+
   alert('Poora deliver ho gaya!');
 }
 
