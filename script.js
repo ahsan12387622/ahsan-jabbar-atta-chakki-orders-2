@@ -48,6 +48,9 @@ var currentUser = null;
 var currentDeliverOrderId = null;
 var currentDeliverProduct = null;
 
+// New Order (2-step) ke liye
+var selectedShopIdForOrder = null;
+
 // ================== FIREBASE SYNC ==================
 function loadAllData(callback) {
   if (!firebaseReady) { if (callback) callback(); return; }
@@ -99,6 +102,26 @@ function saveSettingsFirebase() {
   if (!firebaseReady) return;
   saveToFirebase('settings', 'products', { list: products });
   saveToFirebase('settings', 'business', { bizName: settings.bizName, mode: settings.mode });
+}
+
+// ================== AUTO DATE SHIFT ==================
+// Jo pending orders purani date ke hain, unhe aaj ki date pe shift kar do
+function autoShiftPendingOrders() {
+  if (!firebaseReady) return;
+  var today = todayStr();
+  var shifted = 0;
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if ((o.status === 'Pending' || o.status === 'Partial') && o.date !== today && o.date < today) {
+      o.date = today;
+      o.autoShifted = true;
+      saveToFirebase('orders', o.id, o);
+      shifted++;
+    }
+  }
+  if (shifted > 0) {
+    console.log(shifted + ' pending orders aaj ki date pe shift ho gaye');
+  }
 }
 
 // ================== PERMISSIONS ==================
@@ -752,14 +775,12 @@ function closePendingShopModal() {
   document.getElementById('pendingShopModal').removeAttribute('data-shop-id');
 }
 
-// Pending shop modal ko refresh karo bina band kiye
 function refreshPendingShopModal() {
   var modal = document.getElementById('pendingShopModal');
   if (!modal) return;
   var currentShopId = modal.getAttribute('data-shop-id');
   if (!currentShopId) { closePendingShopModal(); return; }
 
-  // Check karo kya is shop ka koi pending order baqi hai
   var today = todayStr();
   var stillPending = false;
   for (var i = 0; i < orders.length; i++) {
@@ -772,10 +793,8 @@ function refreshPendingShopModal() {
   }
 
   if (!stillPending) {
-    // Saare orders deliver ho gaye — modal band karo
     closePendingShopModal();
   } else {
-    // Warna modal ko dobara render karo (same shop ke liye)
     openPendingShopModal(currentShopId);
   }
 }
@@ -887,25 +906,81 @@ function renderShopkeepers() {
   }
 }
 
-// ================== NEW ORDER ==================
+// ================== NEW ORDER (2-STEP) ==================
 function prepareOrderForm() {
-  var select = document.getElementById('orderShop');
-  if (!select) return;
-  if (shopkeepers.length === 0) {
-    select.innerHTML = '<option value="">Pehle shopkeeper add karein</option>';
-  } else {
-    var html = '<option value="">-- Shopkeeper --</option>';
-    for (var i = 0; i < shopkeepers.length; i++) {
-      html += '<option value="' + shopkeepers[i].id + '">' + shopkeepers[i].name + ' (' + shopkeepers[i].mobile + ')</option>';
-    }
-    select.innerHTML = html;
-  }
+  // Step 1 pe wapas jao
+  selectedShopIdForOrder = null;
+  var step1 = document.getElementById('shopPickerStep');
+  var step2 = document.getElementById('orderFormStep');
+  if (step1) step1.style.display = 'block';
+  if (step2) step2.style.display = 'none';
+  var sub = document.getElementById('newOrderSub');
+  if (sub) sub.textContent = 'Pehle shopkeeper chunein';
+
+  renderShopPickerGrid();
+
   var dEl = document.getElementById('orderDate');
   if (dEl) dEl.value = todayStr();
   var rows = document.getElementById('productRows');
-  if (rows) { rows.innerHTML = ''; addProductRow(); }
+  if (rows) rows.innerHTML = '';
   updateSummary();
 }
+
+function renderShopPickerGrid() {
+  var grid = document.getElementById('shopPickerGrid');
+  if (!grid) return;
+  if (shopkeepers.length === 0) {
+    grid.innerHTML = '<div class="empty" style="grid-column: 1 / -1;"><i class="fa fa-users"></i>Pehle shopkeeper add karein (Shopkeepers page se).</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < shopkeepers.length; i++) {
+    var s = shopkeepers[i];
+    html += '<div class="shop-picker-card" onclick="selectShopkeeperForOrder(\'' + s.id + '\')">' +
+      '<div class="sp-icon"><i class="fa fa-store"></i></div>' +
+      '<div class="sp-name">' + s.name + '</div>' +
+      '<div class="sp-mobile"><i class="fa fa-phone"></i> ' + s.mobile + '</div>' +
+      (s.address ? '<div class="sp-address"><i class="fa fa-map-marker-alt"></i> ' + s.address + '</div>' : '') +
+    '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function selectShopkeeperForOrder(shopId) {
+  selectedShopIdForOrder = shopId;
+  var shop = null;
+  for (var i = 0; i < shopkeepers.length; i++) {
+    if (shopkeepers[i].id == shopId) shop = shopkeepers[i];
+  }
+  if (!shop) return;
+
+  document.getElementById('selectedShopName').textContent = shop.name;
+  document.getElementById('selectedShopMobile').innerHTML = '<i class="fa fa-phone"></i> ' + shop.mobile;
+
+  document.getElementById('shopPickerStep').style.display = 'none';
+  document.getElementById('orderFormStep').style.display = 'block';
+  var sub = document.getElementById('newOrderSub');
+  if (sub) sub.textContent = 'Ab products aur quantity add karein';
+
+  var dEl = document.getElementById('orderDate');
+  if (dEl) dEl.value = todayStr();
+
+  var rows = document.getElementById('productRows');
+  if (rows) { rows.innerHTML = ''; addProductRow(); }
+  updateSummary();
+  window.scrollTo(0, 0);
+}
+
+function changeShopkeeper() {
+  selectedShopIdForOrder = null;
+  document.getElementById('shopPickerStep').style.display = 'block';
+  document.getElementById('orderFormStep').style.display = 'none';
+  var sub = document.getElementById('newOrderSub');
+  if (sub) sub.textContent = 'Pehle shopkeeper chunein';
+  renderShopPickerGrid();
+  window.scrollTo(0, 0);
+}
+
 function addProductRow() {
   var container = document.getElementById('productRows');
   if (!container) return;
@@ -965,10 +1040,10 @@ function updateSummary() {
 }
 function saveMultiOrder() {
   if (!can('newOrder')) { alert('Permission nahi hai'); return; }
-  var shopId = document.getElementById('orderShop').value;
+  if (!selectedShopIdForOrder) { alert('Pehle shopkeeper chunein!'); return; }
+  var shopId = selectedShopIdForOrder;
   var date = document.getElementById('orderDate').value;
   var notes = document.getElementById('orderNotes').value.trim();
-  if (!shopId) { alert('Shopkeeper chunein!'); return; }
   if (!date) { alert('Date chunein!'); return; }
   var rows = document.querySelectorAll('.product-row');
   var items = [], totalKg = 0;
@@ -999,6 +1074,7 @@ function saveMultiOrder() {
         if (shopkeepers[i].id == shopId) shopName = shopkeepers[i].name;
       }
       alert('Order save!\n' + shopName + '\n' + items.length + ' products');
+      // Wapas Step 1 pe jao, nayi shop chunne ke liye
       prepareOrderForm();
       document.getElementById('orderNotes').value = '';
     }).catch(function(e) { alert('Error: ' + e.message); });
@@ -1173,7 +1249,6 @@ function confirmDelivery() {
   closeDeliverModal();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
 
-  // Refresh pending shop modal (WITHOUT closing it) — taake user baar baar tap na kare
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) {
     refreshPendingShopModal();
@@ -1199,7 +1274,6 @@ function markAllDelivered() {
   closeDeliverModal();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
 
-  // Refresh pending shop modal (WITHOUT closing it)
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) {
     refreshPendingShopModal();
@@ -1380,6 +1454,9 @@ window.addEventListener('load', function() {
   applySettings();
   initFirebase(function() {
     loadAllData(function() {
+      // Auto shift pending orders to today's date
+      autoShiftPendingOrders();
+
       var loggedIn = localStorage.getItem('isLoggedIn') === 'true';
       var cachedUser = JSON.parse(localStorage.getItem('currentUser'));
       if (loggedIn && cachedUser) {
