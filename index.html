@@ -45,7 +45,6 @@
     <button class="icon-btn" onclick="manualSync()" title="Data Sync" id="syncBtn">
       <i class="fa fa-sync-alt" id="syncIcon"></i>
     </button>
-    <button class="icon-btn" onclick="toggleMode()"><i class="fa fa-mobile-screen" id="modeIcon"></i></button>
     <button class="icon-btn" onclick="doLogout()"><i class="fa fa-sign-out-alt"></i></button>
     <button class="icon-btn menu-btn" onclick="toggleSidebar()"><i class="fa fa-bars"></i></button>
   </div>
@@ -273,13 +272,6 @@
       <div class="form-group"><label>Purana Password</label><input type="password" id="oldPass" /></div>
       <div class="form-group"><label>Naya Password</label><input type="password" id="newPass" /></div>
       <button class="btn primary" onclick="changePassword()"><i class="fa fa-save"></i> Change</button>
-    </div>
-    <div class="box">
-      <h3><i class="fa fa-mobile-screen"></i> Mode</h3>
-      <div class="mode-switch">
-        <button class="mode-opt" id="modePC" onclick="setMode('pc')"><i class="fa fa-desktop"></i> PC</button>
-        <button class="mode-opt" id="modeMobile" onclick="setMode('mobile')"><i class="fa fa-mobile-screen"></i> Mobile</button>
-      </div>
     </div>
     <div class="box">
       <h3><i class="fa fa-boxes-stacked"></i> Products Manage</h3>
