@@ -361,9 +361,10 @@ function productQtySummary(items) {
   }
   var parts = [];
   if (totalMaund > 0) parts.push(totalMaund + ' maund');
+  // Har kg ko alag alag comma se dikhao
   for (var i = 0; i < kgList.length; i++) parts.push(kgList[i] + ' kg');
   if (parts.length === 0) return '0 kg';
-  return parts.join(' ');
+  return parts.join(', ');
 }
 function getPendingItemsForProduct(order, product) {
   var pending = [];
@@ -738,11 +739,12 @@ function openPendingShopModal(shopId) {
 
       var pName = it.product;
       if (!productMap[pName]) {
-        productMap[pName] = { maund: 0, kg: 0, orderIds: [] };
+        productMap[pName] = { maund: 0, kg: 0, kgList: [], orderIds: [] };
         productOrder.push(pName);
       }
       productMap[pName].maund += remM;
       productMap[pName].kg += remK;
+      if (remK > 0) productMap[pName].kgList.push(remK);
       if (productMap[pName].orderIds.indexOf(o.id) === -1) {
         productMap[pName].orderIds.push(o.id);
       }
@@ -759,7 +761,11 @@ function openPendingShopModal(shopId) {
   for (var p = 0; p < productOrder.length; p++) {
     var pName = productOrder[p];
     var pm = productMap[pName];
-    var qtyStr = qtyText(pm.maund, pm.kg);
+    // Maund + har kg alag alag
+    var qtyParts = [];
+    if (pm.maund > 0) qtyParts.push(pm.maund + ' maund');
+    for (var q = 0; q < pm.kgList.length; q++) qtyParts.push(pm.kgList[q] + ' kg');
+    var qtyStr = qtyParts.join(', ') || '0 kg';
 
     var action = '';
     if (can('deliver')) {
