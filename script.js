@@ -45,7 +45,11 @@ var isLoggedIn = false;
 var currentUser = null;
 var currentDeliverOrderId = null;
 var currentDeliverProduct = null;
+
+// New Order state
 var selectedShopIdForOrder = null;
+var selectedProductForOrder = null;
+var currentOrderItems = [];  // items array [{product, maund, kg}]
 
 // ================== FIREBASE SYNC ==================
 function loadAllData(callback) {
@@ -116,7 +120,7 @@ function autoShiftPendingOrders() {
       shifted++;
     }
   }
-  if (shifted > 0) console.log(shifted + ' pending orders shifted to today');
+  if (shifted > 0) console.log(shifted + ' pending orders shifted');
 }
 
 // ================== PERMISSIONS ==================
@@ -137,7 +141,7 @@ function doSignup() {
   err.textContent = '';
   if (!user || !pass) { err.textContent = 'Username aur password daalein'; return; }
   if (pass.length < 4) { err.textContent = 'Password kam az kam 4 characters'; return; }
-  if (pass !== pass2) { err.textContent = 'Password match nahi kar rahe'; return; }
+  if (pass !== pass2) { err.textContent = 'Password match nahi'; return; }
   if (!firebaseReady) { err.textContent = 'Firebase load nahi hua.'; return; }
   err.textContent = 'Account bana rahe hain...';
   db.collection('users').where('user', '==', user).get().then(function(snap) {
@@ -426,14 +430,14 @@ function addProduct() {
   saveSettingsFirebase();
   input.value = '';
   renderProductsList();
-  prepareOrderForm();
+  renderProductPickerGrid();
 }
 function deleteProduct(i) {
   if (!confirm('Delete: ' + products[i] + '?')) return;
   products.splice(i, 1);
   saveSettingsFirebase();
   renderProductsList();
-  prepareOrderForm();
+  renderProductPickerGrid();
 }
 
 // ================== USERS ==================
@@ -814,27 +818,50 @@ function renderShopkeepers() {
   }
 }
 
-// ================== NEW ORDER (2-STEP) ==================
+// ================== NEW ORDER (3-STEP FLOW) ==================
 function prepareOrderForm() {
   selectedShopIdForOrder = null;
+  selectedProductForOrder = null;
+  currentOrderItems = [];
+  showNewOrderStep(1);
+  var notesEl = document.getElementById('orderNotes');
+  if (notesEl) notesEl.value = '';
+}
+
+function showNewOrderStep(step) {
   var step1 = document.getElementById('shopPickerStep');
-  var step2 = document.getElementById('orderFormStep');
-  if (step1) step1.style.display = 'block';
-  if (step2) step2.style.display = 'none';
+  var step2 = document.getElementById('productPickerStep');
+  var step3 = document.getElementById('quantityStep');
+  var heading = document.getElementById('newOrderHeading');
   var sub = document.getElementById('newOrderSub');
-  if (sub) sub.textContent = 'Pehle shopkeeper chunein';
-  renderShopPickerGrid();
-  var dEl = document.getElementById('orderDate');
-  if (dEl) dEl.value = todayStr();
-  var rows = document.getElementById('productRows');
-  if (rows) rows.innerHTML = '';
-  updateSummary();
+
+  step1.style.display = 'none';
+  step2.style.display = 'none';
+  step3.style.display = 'none';
+
+  if (step === 1) {
+    step1.style.display = 'block';
+    if (heading) heading.textContent = 'Naya Order';
+    if (sub) sub.textContent = 'Pehle shopkeeper chunein';
+    renderShopPickerGrid();
+  } else if (step === 2) {
+    step2.style.display = 'block';
+    if (heading) heading.textContent = 'Products Chunein';
+    if (sub) sub.textContent = 'Product pe tap karke quantity add karein';
+    renderProductPickerGrid();
+    renderAddedProducts();
+  } else if (step === 3) {
+    step3.style.display = 'block';
+    if (heading) heading.textContent = 'Quantity Daalein';
+    if (sub) sub.textContent = 'Maund aur Kg alag alag likhein';
+  }
+  window.scrollTo(0, 0);
 }
 
 function renderShopPickerGrid() {
   var grid = document.getElementById('shopPickerGrid');
   if (!grid) return;
-  console.log('renderShopPickerGrid called. shopkeepers count:', shopkeepers.length);
+  console.log('renderShopPickerGrid: shopkeepers =', shopkeepers.length);
   if (shopkeepers.length === 0) {
     grid.innerHTML = '<div class="empty" style="grid-column: 1 / -1;"><i class="fa fa-users"></i>Pehle shopkeeper add karein (Shopkeepers page se).</div>';
     return;
@@ -854,6 +881,7 @@ function renderShopPickerGrid() {
 
 function selectShopkeeperForOrder(shopId) {
   selectedShopIdForOrder = shopId;
+  currentOrderItems = [];
   var shop = null;
   for (var i = 0; i < shopkeepers.length; i++) {
     if (shopkeepers[i].id == shopId) shop = shopkeepers[i];
@@ -861,103 +889,152 @@ function selectShopkeeperForOrder(shopId) {
   if (!shop) return;
   document.getElementById('selectedShopName').textContent = shop.name;
   document.getElementById('selectedShopMobile').innerHTML = '<i class="fa fa-phone"></i> ' + shop.mobile;
-  document.getElementById('shopPickerStep').style.display = 'none';
-  document.getElementById('orderFormStep').style.display = 'block';
-  var sub = document.getElementById('newOrderSub');
-  if (sub) sub.textContent = 'Ab products aur quantity add karein';
-  var dEl = document.getElementById('orderDate');
-  if (dEl) dEl.value = todayStr();
-  var rows = document.getElementById('productRows');
-  if (rows) { rows.innerHTML = ''; addProductRow(); }
-  updateSummary();
-  window.scrollTo(0, 0);
+  showNewOrderStep(2);
 }
 
 function changeShopkeeper() {
+  if (currentOrderItems.length > 0) {
+    if (!confirm('Shopkeeper change karne se add kiye gaye products hat jayenge. Continue?')) return;
+  }
   selectedShopIdForOrder = null;
-  document.getElementById('shopPickerStep').style.display = 'block';
-  document.getElementById('orderFormStep').style.display = 'none';
-  var sub = document.getElementById('newOrderSub');
-  if (sub) sub.textContent = 'Pehle shopkeeper chunein';
-  renderShopPickerGrid();
-  window.scrollTo(0, 0);
+  currentOrderItems = [];
+  showNewOrderStep(1);
 }
 
-function addProductRow() {
-  var container = document.getElementById('productRows');
-  if (!container) return;
-  var idx = container.children.length;
-  if (products.length === 0) { alert('Pehle Settings mein product add karein'); return; }
-  var div = document.createElement('div');
-  div.className = 'product-row';
-  var productsHtml = '';
-  for (var i = 0; i < products.length; i++) {
-    productsHtml += '<option value="' + products[i] + '">' + products[i] + '</option>';
-  }
-  var removeBtn = idx > 0 ? '<button class="remove-btn" onclick="removeProductRow(this)"><i class="fa fa-trash"></i></button>' : '';
-  div.innerHTML = '<div class="product-row-head"><h4><i class="fa fa-box"></i> Product #' + (idx + 1) + '</h4>' + removeBtn + '</div>' +
-    '<div class="form-group"><label>Product</label><select class="prod-select" onchange="updateSummary()">' + productsHtml + '</select></div>' +
-    '<div class="qty-row">' +
-    '<div class="form-group"><label>Maund</label><input type="number" class="maund-input" min="0" placeholder="0" oninput="updateSummary()" /></div>' +
-    '<div class="form-group"><label>Kg</label><input type="number" class="kg-input" min="0" max="39" placeholder="0" oninput="updateSummary()" /></div>' +
-    '<div class="form-group"><label>Total</label><input type="text" class="total-input" readonly /></div></div>';
-  container.appendChild(div);
-  updateSummary();
-}
-function removeProductRow(btn) {
-  btn.parentNode.parentNode.remove();
-  var rows = document.querySelectorAll('.product-row');
-  for (var i = 0; i < rows.length; i++) {
-    rows[i].querySelector('h4').innerHTML = '<i class="fa fa-box"></i> Product #' + (i + 1);
-  }
-  updateSummary();
-}
-function updateSummary() {
-  var rows = document.querySelectorAll('.product-row');
-  var totalKg = 0, lines = [];
-  for (var i = 0; i < rows.length; i++) {
-    var row = rows[i];
-    var prod = row.querySelector('.prod-select').value;
-    var m = parseInt(row.querySelector('.maund-input').value) || 0;
-    var k = parseInt(row.querySelector('.kg-input').value) || 0;
-    var rowKg = m * 40 + k;
-    row.querySelector('.total-input').value = qtyText(m, k);
-    if (rowKg > 0) { totalKg += rowKg; lines.push({ product: prod, maund: m, kg: k }); }
-  }
-  var summary = document.getElementById('orderSummary');
-  if (!summary) return;
-  if (lines.length === 0) {
-    summary.innerHTML = '<h4>Order Summary</h4><p style="color:#64748b;font-size:14px">Abhi koi quantity nahi daali</p>';
+function renderProductPickerGrid() {
+  var grid = document.getElementById('productPickerGrid');
+  if (!grid) return;
+  if (products.length === 0) {
+    grid.innerHTML = '<div class="empty" style="grid-column: 1 / -1;"><i class="fa fa-box"></i>Koi product nahi. Pehle Settings mein product add karein.</div>';
     return;
   }
-  var html = '<h4>Order Summary</h4>';
-  for (var i = 0; i < lines.length; i++) {
-    html += '<div class="summary-line"><span>' + lines[i].product + '</span><span>' + qtyText(lines[i].maund, lines[i].kg) + '</span></div>';
+  var html = '';
+  for (var i = 0; i < products.length; i++) {
+    var p = products[i];
+    var added = false;
+    for (var j = 0; j < currentOrderItems.length; j++) {
+      if (currentOrderItems[j].product === p) { added = true; break; }
+    }
+    html += '<div class="product-picker-card' + (added ? ' added' : '') + '" onclick="selectProductForOrder(\'' + p.replace(/'/g, "\\'") + '\')">' +
+      (added ? '<i class="fa fa-check-circle pp-check"></i>' : '') +
+      '<div class="pp-icon"><i class="fa fa-box"></i></div>' +
+      '<div class="pp-name">' + p + '</div>' +
+      '</div>';
   }
-  html += '<div class="summary-line"><span>TOTAL</span><span>' + totalKgText(totalKg) + '</span></div>';
-  summary.innerHTML = html;
+  grid.innerHTML = html;
 }
+
+function selectProductForOrder(productName) {
+  selectedProductForOrder = productName;
+  document.getElementById('qtyProductName').textContent = productName;
+
+  // Agar pehle se added hai to uski values dikhao
+  var existingM = 0, existingK = 0;
+  for (var i = 0; i < currentOrderItems.length; i++) {
+    if (currentOrderItems[i].product === productName) {
+      existingM = currentOrderItems[i].maund;
+      existingK = currentOrderItems[i].kg;
+      break;
+    }
+  }
+  document.getElementById('qtyMaund').value = existingM > 0 ? existingM : '';
+  document.getElementById('qtyKg').value = existingK > 0 ? existingK : '';
+  updateQtyPreview();
+  showNewOrderStep(3);
+}
+
+function updateQtyPreview() {
+  var m = parseInt(document.getElementById('qtyMaund').value) || 0;
+  var k = parseInt(document.getElementById('qtyKg').value) || 0;
+  var totalKg = (m * 40) + k;
+  document.getElementById('qtyPreviewText').textContent = totalKgText(totalKg);
+}
+
+function cancelQty() {
+  selectedProductForOrder = null;
+  showNewOrderStep(2);
+}
+
+function confirmQtyAdd() {
+  var m = parseInt(document.getElementById('qtyMaund').value) || 0;
+  var k = parseInt(document.getElementById('qtyKg').value) || 0;
+  if (m === 0 && k === 0) {
+    alert('Kam az kam maund ya kg daalein!');
+    return;
+  }
+  if (k > 39) {
+    alert('Kg 39 se zyada nahi ho sakta. Maund use karein.');
+    return;
+  }
+  // Check karo product pehle se added hai?
+  var found = false;
+  for (var i = 0; i < currentOrderItems.length; i++) {
+    if (currentOrderItems[i].product === selectedProductForOrder) {
+      currentOrderItems[i].maund = m;
+      currentOrderItems[i].kg = k;
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    currentOrderItems.push({ product: selectedProductForOrder, maund: m, kg: k });
+  }
+  selectedProductForOrder = null;
+  showNewOrderStep(2);
+}
+
+function renderAddedProducts() {
+  var box = document.getElementById('addedProductsBox');
+  var list = document.getElementById('addedProductsList');
+  var count = document.getElementById('addedProductsCount');
+  if (!box || !list) return;
+  if (currentOrderItems.length === 0) {
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'block';
+  if (count) count.textContent = currentOrderItems.length;
+  var html = '';
+  for (var i = 0; i < currentOrderItems.length; i++) {
+    var it = currentOrderItems[i];
+    html += '<div class="added-product-row">' +
+      '<div class="ap-name"><i class="fa fa-check-circle"></i> ' + it.product + '</div>' +
+      '<div class="ap-qty">' + qtyText(it.maund, it.kg) + '</div>' +
+      '<div class="ap-actions">' +
+        '<button class="btn small" onclick="editAddedProduct(' + i + ')"><i class="fa fa-edit"></i></button>' +
+        '<button class="btn small danger" onclick="removeAddedProduct(' + i + ')"><i class="fa fa-trash"></i></button>' +
+      '</div>' +
+      '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function editAddedProduct(idx) {
+  var it = currentOrderItems[idx];
+  selectProductForOrder(it.product);
+}
+
+function removeAddedProduct(idx) {
+  currentOrderItems.splice(idx, 1);
+  renderAddedProducts();
+  renderProductPickerGrid();
+}
+
 function saveMultiOrder() {
   if (!can('newOrder')) { alert('Permission nahi hai'); return; }
   if (!selectedShopIdForOrder) { alert('Pehle shopkeeper chunein!'); return; }
+  if (currentOrderItems.length === 0) { alert('Kam az kam ek product add karein!'); return; }
   var shopId = selectedShopIdForOrder;
-  var date = document.getElementById('orderDate').value;
+  var date = todayStr();
   var notes = document.getElementById('orderNotes').value.trim();
-  if (!date) { alert('Date chunein!'); return; }
-  var rows = document.querySelectorAll('.product-row');
-  var items = [], totalKg = 0;
-  for (var i = 0; i < rows.length; i++) {
-    var row = rows[i];
-    var prod = row.querySelector('.prod-select').value;
-    var m = parseInt(row.querySelector('.maund-input').value) || 0;
-    var k = parseInt(row.querySelector('.kg-input').value) || 0;
-    var rowKg = m * 40 + k;
-    if (rowKg > 0) {
-      items.push({ product: prod, maund: m, kg: k, deliveredMaund: 0, deliveredKg: 0, totalKg: rowKg });
-      totalKg += rowKg;
-    }
+  var items = [];
+  var totalKg = 0;
+  for (var i = 0; i < currentOrderItems.length; i++) {
+    var it = currentOrderItems[i];
+    var rowKg = (it.maund * 40) + it.kg;
+    items.push({ product: it.product, maund: it.maund, kg: it.kg, deliveredMaund: 0, deliveredKg: 0, totalKg: rowKg });
+    totalKg += rowKg;
   }
-  if (items.length === 0) { alert('Kam az kam ek product ki quantity daalein!'); return; }
   var newOrder = {
     shopId: shopId, items: items, totalKg: totalKg, date: date,
     notes: notes, status: 'Pending',
@@ -970,9 +1047,31 @@ function saveMultiOrder() {
       orders.push(newOrder);
       alert('Order save!');
       prepareOrderForm();
-      document.getElementById('orderNotes').value = '';
+      renderDashboard();
+      showPage('dashboard');
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
+}
+
+// New Order page ka back button
+function newOrderBack() {
+  // Step 3 pe hain?
+  var step3 = document.getElementById('quantityStep');
+  if (step3 && step3.style.display === 'block') {
+    cancelQty();
+    return;
+  }
+  // Step 2 pe hain?
+  var step2 = document.getElementById('productPickerStep');
+  if (step2 && step2.style.display === 'block') {
+    if (currentOrderItems.length > 0) {
+      if (!confirm('Add kiye gaye products save nahi hue. Wapas shopkeeper chunne jaana hai?')) return;
+    }
+    changeShopkeeper();
+    return;
+  }
+  // Step 1 pe hain? Seedha dashboard
+  showPage('dashboard');
 }
 
 // ================== ORDERS PAGE ==================
