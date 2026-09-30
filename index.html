@@ -89,7 +89,6 @@
     <div><div id="userNameLabel">User</div><div id="userRoleLabel" class="user-role">Staff</div></div>
   </div>
 
-  <!-- Edit Menu button -->
   <div class="edit-menu-wrap">
     <button class="btn small edit-menu-btn" onclick="toggleMenuEdit()" id="editMenuBtn">
       <i class="fa fa-pen"></i> Edit Menu
@@ -98,7 +97,6 @@
 
   <nav class="sidebar-nav" id="sidebarNav"></nav>
 
-  <!-- Edit Menu Panel (initially hidden) -->
   <div id="menuEditPanel" class="menu-edit-panel" style="display:none;">
     <h4><i class="fa fa-bars"></i> Menu Customize</h4>
     <p class="menu-edit-hint">Checkbox se hide/show, arrows se order</p>
@@ -135,25 +133,22 @@
       </div>
     </div>
 
-    <!-- Dashboard Edit Controls (initially hidden) -->
     <div id="dashEditPanel" class="dash-edit-panel" style="display:none;">
       <h4><i class="fa fa-sliders"></i> Customize Dashboard</h4>
-      <p class="menu-edit-hint">Checkbox se hide/show, slider se size</p>
+      <p class="menu-edit-hint">Checkbox = show/hide | Slider = size | Grid/List = view style</p>
       <div id="dashEditList"></div>
     </div>
 
-    <!-- ===== Big Buttons ===== -->
     <div id="sec-bigButtons" class="dash-section">
-      <div class="big-buttons">
+      <div class="big-buttons" id="bigButtonsWrap">
         <button class="big-btn new-order" onclick="showPage('neworder')"><i class="fa fa-plus-circle"></i><span>Naya Order</span><small>Order add karein</small></button>
         <button class="big-btn new-route" onclick="showPage('routes')"><i class="fa fa-route"></i><span>Delivery Route Add</span><small>Route banayein</small></button>
         <button class="big-btn all-orders" onclick="showPage('orders')"><i class="fa fa-truck"></i><span>Orders / Loading</span><small>Sab orders dekhein</small></button>
       </div>
     </div>
 
-    <!-- ===== 4 Cards ===== -->
     <div id="sec-cards" class="dash-section">
-      <div class="cards">
+      <div class="cards" id="cardsWrap">
         <div class="card blue"><div class="card-icon"><i class="fa fa-users"></i></div><div><h3 id="totalShopkeepers">0</h3><p>Shopkeepers</p></div></div>
         <div class="card orange"><div class="card-icon"><i class="fa fa-calendar-day"></i></div><div><h3 id="todayOrders">0</h3><p>Aaj ke Orders</p></div></div>
         <div class="card red"><div class="card-icon"><i class="fa fa-hourglass-half"></i></div><div><h3 id="pendingOrders">0</h3><p>Pending</p></div></div>
@@ -161,19 +156,16 @@
       </div>
     </div>
 
-    <!-- ===== Pending Shopkeeper Order ===== -->
     <div id="sec-pendingShops" class="dash-section box">
       <div class="box-head"><h2><i class="fa fa-bell"></i> Today's Pending Shopkeeper Order</h2><span class="pill" id="pendingShopBadge">0</span></div>
       <div id="pendingShopList" class="pending-shop-list"></div>
     </div>
 
-    <!-- ===== Aaj Ka Load ===== -->
     <div id="sec-load" class="dash-section box">
       <div class="box-head"><h2><i class="fa fa-truck"></i> Aaj Ka Load</h2><span class="pill" id="todayLoadBadge">0</span></div>
       <div id="todayLoadList"></div>
     </div>
 
-    <!-- ===== Aaj Ke Routes ===== -->
     <div id="sec-routes" class="dash-section box">
       <div class="box-head"><h2><i class="fa fa-route"></i> Aaj Ke Delivery Routes</h2><span class="pill" id="routesBadge">0</span></div>
       <div id="dashboardRoutesList" class="routes-list"></div>
@@ -317,14 +309,91 @@
     <div id="deliveryList" class="list"></div>
   </section>
 
+  <!-- ============ HISTORY (2 Tabs: Sales Report + Orders Log) ============ -->
   <section id="history" class="page">
-    <div class="page-header"><h1>Order History</h1><p class="page-sub">Purane delivered orders</p></div>
-    <div class="filters">
-      <input type="text" id="historySearch" placeholder="🔍 Shopkeeper..." oninput="renderHistory()" />
-      <input type="date" id="historyDate" onchange="renderHistory()" />
-      <button class="btn" onclick="clearHistoryFilter()">Clear</button>
+    <div class="page-header">
+      <h1><i class="fa fa-chart-line"></i> History / Reports</h1>
+      <p class="page-sub">Sales report aur purane orders</p>
     </div>
-    <div id="historyList" class="list"></div>
+
+    <!-- Tabs -->
+    <div class="history-tabs">
+      <button class="history-tab active" id="tabSales" onclick="switchHistoryTab('sales')">
+        <i class="fa fa-chart-line"></i> Sales Report
+      </button>
+      <button class="history-tab" id="tabLog" onclick="switchHistoryTab('log')">
+        <i class="fa fa-list"></i> Orders Log
+      </button>
+    </div>
+
+    <!-- Tab 1: Sales Report -->
+    <div id="salesReportTab">
+      <div class="box">
+        <h3><i class="fa fa-filter"></i> Filter</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>From Date</label>
+            <input type="date" id="salesFromDate" />
+          </div>
+          <div class="form-group">
+            <label>To Date</label>
+            <input type="date" id="salesToDate" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Shopkeeper</label>
+            <select id="salesShopFilter">
+              <option value="all">All Shopkeepers</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Product</label>
+            <select id="salesProductFilter">
+              <option value="all">All Products</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn primary big" onclick="renderSalesReport()">
+          <i class="fa fa-search"></i> Report Dekhein
+        </button>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="cards" id="salesSummaryCards">
+        <div class="card blue"><div class="card-icon"><i class="fa fa-shopping-cart"></i></div><div><h3 id="salesTotalOrders">0</h3><p>Total Orders</p></div></div>
+        <div class="card orange"><div class="card-icon"><i class="fa fa-weight-hanging"></i></div><div><h3 id="salesTotalLoad">0</h3><p>Total Maal</p></div></div>
+        <div class="card green"><div class="card-icon"><i class="fa fa-box"></i></div><div><h3 id="salesTotalProducts">0</h3><p>Total Products</p></div></div>
+      </div>
+
+      <!-- Product wise -->
+      <div class="box">
+        <div class="box-head">
+          <h2><i class="fa fa-boxes-stacked"></i> Product Wise Report</h2>
+          <span class="pill" id="productWiseCount">0</span>
+        </div>
+        <div id="salesProductWiseList" class="sales-list"></div>
+      </div>
+
+      <!-- Shopkeeper wise -->
+      <div class="box">
+        <div class="box-head">
+          <h2><i class="fa fa-store"></i> Shopkeeper Wise Report</h2>
+          <span class="pill" id="shopWiseCount">0</span>
+        </div>
+        <div id="salesShopWiseList" class="sales-list"></div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Orders Log -->
+    <div id="ordersLogTab" style="display:none;">
+      <div class="filters">
+        <input type="text" id="historySearch" placeholder="🔍 Shopkeeper..." oninput="renderHistory()" />
+        <input type="date" id="historyDate" onchange="renderHistory()" />
+        <button class="btn" onclick="clearHistoryFilter()">Clear</button>
+      </div>
+      <div id="historyList" class="list"></div>
+    </div>
   </section>
 
   <section id="users" class="page">
@@ -379,10 +448,9 @@
       </div>
       <div id="productsList" class="product-list"></div>
     </div>
-    <!-- Hidden Menu Items Box -->
     <div class="box" id="hiddenMenuBox" style="display:none;">
       <h3><i class="fa fa-eye-slash"></i> Hidden Menu Items</h3>
-      <p class="hint">Ye menu items aapne sidebar se hide kiye hain. Yahan se access karein.</p>
+      <p class="hint">Ye menu items aapne sidebar se hide kiye hain.</p>
       <div id="hiddenMenuList" class="hidden-menu-list"></div>
     </div>
   </section>
@@ -442,6 +510,24 @@
     <div id="pinSetupError" class="login-error"></div>
     <button class="btn primary big" onclick="savePin()"><i class="fa fa-save"></i> PIN Save Karein</button>
     <button class="btn big" onclick="closePinSetup()">Cancel</button>
+  </div>
+</div>
+
+<!-- Sales Report Shop Detail Modal -->
+<div id="salesShopModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeSalesShopModal()">&times;</span>
+    <h2 id="salesShopModalTitle">Shopkeeper Orders</h2>
+    <div id="salesShopModalBody"></div>
+  </div>
+</div>
+
+<!-- Sales Report Product Detail Modal -->
+<div id="salesProductModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeSalesProductModal()">&times;</span>
+    <h2 id="salesProductModalTitle">Product Details</h2>
+    <div id="salesProductModalBody"></div>
   </div>
 </div>
 
