@@ -834,10 +834,9 @@ function renderShopkeepers() {
 }
 
 // ================== DELIVERY ROUTES ==================
-// Auto route name generate karo
+// Route name auto
 function generateRouteName() {
   var nextNum = routes.length + 1;
-  // Check karo ke koi mojood route "Route N" ke naam se nahi hai
   var names = {};
   for (var i = 0; i < routes.length; i++) names[routes[i].name] = true;
   while (names['Route ' + nextNum]) nextNum++;
@@ -849,21 +848,65 @@ function updateRouteNameField() {
   if (!el) return;
   var id = document.getElementById('routeId').value;
   if (id) {
-    // Editing mode — current name dikhao
     for (var i = 0; i < routes.length; i++) {
       if (routes[i].id == id) { el.value = routes[i].name; return; }
     }
   }
-  // New mode — next auto name
   el.value = generateRouteName();
 }
 
+// Check karo ke shopkeeper ka aaj ka koi pending/partial order hai
+function shopHasTodayPendingOrder(shopId) {
+  var today = todayStr();
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.shopId != shopId) continue;
+    if (o.date !== today) continue;
+    if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+    return true;
+  }
+  return false;
+}
+
+// Shopkeeper kis route mein hai (find)
+function findShopRoute(shopId) {
+  for (var i = 0; i < routes.length; i++) {
+    var ids = routes[i].shopIds || [];
+    if (ids.indexOf(shopId) !== -1) return routes[i];
+  }
+  return null;
+}
+
+// Save route
 function saveRoute() {
   if (!can('routes')) { alert('Permission nahi hai'); return; }
   var id = document.getElementById('routeId').value;
   var name = document.getElementById('routeName').value.trim();
   if (!name) name = generateRouteName();
   if (selectedRouteShops.length === 0) { alert('Kam az kam ek shopkeeper chunein!'); return; }
+
+  // Auto-transfer: jo shopkeepers doosre route mein hain unhe nikaal do
+  // (jab tak wo is route mein select nahi hain)
+  var currentRouteId = id || null;
+  for (var r = 0; r < routes.length; r++) {
+    var route = routes[r];
+    if (route.id === currentRouteId) continue; // ye route khud skip
+    var ids = (route.shopIds || []).slice();
+    var changed = false;
+    var newIds = [];
+    for (var i = 0; i < ids.length; i++) {
+      if (selectedRouteShops.indexOf(ids[i]) !== -1) {
+        changed = true;
+        // Ye shopkeeper naye route mein move ho raha hai — remove from here
+      } else {
+        newIds.push(ids[i]);
+      }
+    }
+    if (changed) {
+      route.shopIds = newIds;
+      saveToFirebase('routes', route.id, route);
+    }
+  }
 
   if (id) {
     for (var i = 0; i < routes.length; i++) {
@@ -876,6 +919,7 @@ function saveRoute() {
     }
     alert('Route update ho gaya!');
     resetRouteForm(); renderRoutes(); renderDashboardRoutes();
+    showPage('dashboard');
     return;
   }
 
@@ -891,6 +935,7 @@ function saveRoute() {
       routes.push(newRoute);
       alert('Route ban gaya: ' + name);
       resetRouteForm(); renderRoutes(); renderDashboardRoutes();
+      showPage('dashboard');
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
 }
@@ -931,26 +976,58 @@ function deleteRoute(id) {
   updateRouteNameField();
 }
 
+// Route shop picker
 function renderRouteShopPicker() {
   var box = document.getElementById('routeShopPicker');
   if (!box) return;
-  if (shopkeepers.length === 0) {
-    box.innerHTML = '<p class="hint">Pehle shopkeeper add karein.</p>';
-    return;
-  }
-  var html = '';
+  var currentRouteId = document.getElementById('routeId').value || null;
+
+  // Filter: sirf wahi shopkeepers jo:
+  // 1. Aaj unka pending/partial order hai, YA
+  // 2. Is route mein already selected hain
+  var visible = [];
   for (var i = 0; i < shopkeepers.length; i++) {
     var s = shopkeepers[i];
+    var isSelected = selectedRouteShops.indexOf(s.id) !== -1;
+    var hasOrder = shopHasTodayPendingOrder(s.id);
+    if (isSelected || hasOrder) visible.push(s);
+  }
+
+  if (visible.length === 0) {
+    box.innerHTML = '<div class="route-empty-hint"><i class="fa fa-inbox"></i>Aaj koi shopkeeper ka pending order nahi hai.</div>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < visible.length; i++) {
+    var s = visible[i];
     var selected = selectedRouteShops.indexOf(s.id) !== -1;
+
+    // Check karo ke shopkeeper kisi aur route mein hai ya nahi
+    var otherRoute = null;
+    for (var r = 0; r < routes.length; r++) {
+      if (routes[r].id === currentRouteId) continue;
+      var ids = routes[r].shopIds || [];
+      if (ids.indexOf(s.id) !== -1) { otherRoute = routes[r]; break; }
+    }
+
+    var routeBadge = '';
+    if (otherRoute && !selected) {
+      routeBadge = '<span class="other-route-badge">📍 ' + otherRoute.name + '</span>';
+    }
+
     html += '<label class="route-shop-item ' + (selected ? 'selected' : '') + '">' +
       '<input type="checkbox" ' + (selected ? 'checked' : '') + ' onchange="toggleRouteShop(\'' + s.id + '\', this.checked)" />' +
-      '<span><i class="fa fa-store"></i> ' + s.name + '</span>' +
+      '<span class="shop-info">' +
+        '<span class="shop-name-line"><i class="fa fa-store"></i> ' + s.name + '</span>' +
+      '</span>' +
+      routeBadge +
       '</label>';
   }
   box.innerHTML = html;
 }
 
-// FIX: selectedRouteShops ka data rakhne ke liye — poora re-render NAHI karo
+// FIX: pura re-render nahi, sirf checkbox ke parent ko update
 function toggleRouteShop(shopId, checked) {
   if (checked) {
     if (selectedRouteShops.indexOf(shopId) === -1) selectedRouteShops.push(shopId);
@@ -958,18 +1035,20 @@ function toggleRouteShop(shopId, checked) {
     var idx = selectedRouteShops.indexOf(shopId);
     if (idx !== -1) selectedRouteShops.splice(idx, 1);
   }
-  // Sirf parent label ko update karo — pura grid re-render nahi
+  // Sirf wahi card update karo, pura grid re-render nahi
   var items = document.querySelectorAll('.route-shop-item');
   for (var i = 0; i < items.length; i++) {
     var cb = items[i].querySelector('input[type="checkbox"]');
     if (!cb) continue;
-    if (cb.getAttribute('onchange').indexOf("'" + shopId + "'") !== -1) {
+    var oc = cb.getAttribute('onchange') || '';
+    if (oc.indexOf("'" + shopId + "'") !== -1) {
       if (checked) items[i].classList.add('selected');
       else items[i].classList.remove('selected');
     }
   }
 }
 
+// Routes list render
 function renderRoutes() {
   var list = document.getElementById('routesList');
   if (!list) return;
