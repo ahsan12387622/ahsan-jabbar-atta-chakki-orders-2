@@ -205,25 +205,21 @@ function verifyPin() {
     document.getElementById('pinInput').value = '';
     return;
   }
-  // Sahi PIN
   document.getElementById('pinScreen').style.display = 'none';
   showApp();
 }
 
 function pinForgot() {
   if (!confirm('PIN bhool gaye? Aapko password se login karna hoga.')) return;
-  // PIN clear karo (Firebase bhi)
   if (currentUser && currentUser.pin) {
     currentUser.pin = '';
     if (firebaseReady && currentUser.id) {
       db.collection('users').doc(String(currentUser.id)).update({ pin: '' }).catch(function(e) { console.log(e); });
     }
-    // Local users array bhi update
     for (var i = 0; i < users.length; i++) {
       if (users[i].id === currentUser.id) { users[i].pin = ''; break; }
     }
   }
-  // Session clear karo
   localStorage.setItem('isLoggedIn', 'false');
   localStorage.removeItem('currentUser');
   currentUser = null;
@@ -235,9 +231,7 @@ function pinForgot() {
 }
 
 function promptPinSetup() {
-  // Agar user ka PIN already set hai to skip
   if (currentUser && currentUser.pin) return;
-  // Banner dikha do
   document.getElementById('pinSetupBanner').style.display = 'block';
 }
 
@@ -272,17 +266,13 @@ function savePin() {
   if (!currentUser) { err.textContent = 'User nahi mila'; return; }
 
   currentUser.pin = p1;
-
-  // localStorage update
   localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
-  // Firebase update
   if (firebaseReady && currentUser.id) {
     db.collection('users').doc(String(currentUser.id)).update({ pin: p1 }).catch(function(e) {
       console.log('PIN save error:', e);
     });
   }
-  // Local users array update
   for (var i = 0; i < users.length; i++) {
     if (users[i].id === currentUser.id) { users[i].pin = p1; break; }
   }
@@ -389,7 +379,6 @@ function doLogin() {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(found));
     showApp();
-    // PIN setup prompt (agar PIN nahi hai to)
     if (!currentUser.pin) {
       setTimeout(function() { promptPinSetup(); }, 500);
     }
@@ -466,7 +455,6 @@ function manualSync() {
   loadAllData(function() {
     autoShiftPendingOrders();
 
-    // Current user refresh karo (PIN update ho sakta hai)
     if (currentUser) {
       for (var i = 0; i < users.length; i++) {
         if (users[i].id === currentUser.id) {
@@ -1615,6 +1603,8 @@ function renderDashboardRoutes() {
   }
   list.innerHTML = html;
 }
+
+// ============ UPDATED: openRouteModal — product wise combine ============
 function openRouteModal(routeId) {
   var route = null;
   for (var i = 0; i < routes.length; i++) {
@@ -1644,7 +1634,11 @@ function openRouteModal(routeId) {
     }
     if (!shop) continue;
 
-    var shopItems = [];
+    // Product wise combine karo (maund total, kg alag alag)
+    var productMap = {};
+    var productOrder = [];
+    var shopTotalKg = 0;
+
     for (var j = 0; j < orders.length; j++) {
       var o = orders[j];
       if (o.shopId != sid) continue;
@@ -1654,22 +1648,37 @@ function openRouteModal(routeId) {
         var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
         var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
         if (remM <= 0 && remK <= 0) continue;
-        shopItems.push({ product: it.product, maund: remM, kg: remK, orderId: o.id, orderDate: o.date });
+
+        shopTotalKg += (remM * 40) + remK;
+
+        var pName = it.product;
+        if (!productMap[pName]) {
+          productMap[pName] = { maund: 0, kgList: [] };
+          productOrder.push(pName);
+        }
+        productMap[pName].maund += remM;
+        if (remK > 0) productMap[pName].kgList.push(remK);
       }
     }
 
-    if (shopItems.length === 0) continue;
+    if (productOrder.length === 0) continue;
 
-    var shopTotalKg = 0;
-    for (var x = 0; x < shopItems.length; x++) {
-      shopTotalKg += (shopItems[x].maund * 40) + shopItems[x].kg;
-    }
     grandTotalKg += shopTotalKg;
 
+    // Item rows — ek row per product
     var itemsHtml = '';
-    for (var x = 0; x < shopItems.length; x++) {
-      var si = shopItems[x];
-      itemsHtml += '<p>📦 <b>' + si.product + '</b> — ' + qtyText(si.maund, si.kg) + '</p>';
+    for (var p = 0; p < productOrder.length; p++) {
+      var pName = productOrder[p];
+      var pdata = productMap[pName];
+      var qtyParts = [];
+      if (pdata.maund > 0) qtyParts.push(pdata.maund + ' maund');
+      for (var q = 0; q < pdata.kgList.length; q++) qtyParts.push(pdata.kgList[q] + ' kg');
+      var qtyStr = qtyParts.join(', ') || '0 kg';
+
+      itemsHtml += '<div class="route-product-line">' +
+        '<span class="rp-name">📦 ' + pName + '</span>' +
+        '<span class="rp-qty">' + qtyStr + '</span>' +
+      '</div>';
     }
 
     html += '<div class="route-detail-shop">' +
@@ -1677,7 +1686,7 @@ function openRouteModal(routeId) {
         '<h4><i class="fa fa-store"></i> ' + shop.name + '</h4>' +
         '<span class="qty-pill">' + totalKgText(shopTotalKg) + '</span>' +
       '</div>' +
-      '<p style="font-size:13px;color:#64748b;margin-bottom:6px;"><i class="fa fa-phone"></i> ' + shop.mobile + '</p>' +
+      '<p style="font-size:13px;color:#64748b;margin-bottom:8px;"><i class="fa fa-phone"></i> ' + shop.mobile + '</p>' +
       '<div class="route-detail-items">' + itemsHtml + '</div>' +
     '</div>';
   }
@@ -2312,12 +2321,10 @@ window.addEventListener('load', function() {
           currentUser = found;
           isLoggedIn = true;
 
-          // PIN check — agar PIN set hai to PIN screen dikhao
           if (currentUser.pin && String(currentUser.pin).length === 4) {
             showPinScreen();
             return;
           } else {
-            // PIN nahi hai — seedha dashboard
             showApp();
             return;
           }
