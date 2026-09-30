@@ -41,33 +41,34 @@ var orders = [];
 var products = ['Aata', 'Besan', 'Chawal ka Atta'];
 var settings = { bizName: 'Atta Chakki', mode: 'auto' };
 var users = [];
+var routes = [];
 var isLoggedIn = false;
 var currentUser = null;
 var currentDeliverOrderId = null;
 var currentDeliverProduct = null;
 
-// New Order state
 var selectedShopIdForOrder = null;
 var selectedProductForOrder = null;
-var currentOrderItems = [];  // items array [{product, maund, kg}]
+var currentOrderItems = [];
+var selectedRouteShops = [];
 
 // ================== FIREBASE SYNC ==================
 function loadAllData(callback) {
   if (!firebaseReady) { if (callback) callback(); return; }
-  var pending = 5;
+  var pending = 6;
   function done() { pending--; if (pending === 0 && callback) callback(); }
 
   db.collection('shopkeepers').get().then(function(snap) {
     shopkeepers = [];
     snap.forEach(function(doc) { var d = doc.data(); d.id = doc.id; shopkeepers.push(d); });
-    console.log('Shopkeepers loaded:', shopkeepers.length);
+    console.log('Shopkeepers:', shopkeepers.length);
     done();
   }).catch(function(e) { console.log(e); done(); });
 
   db.collection('orders').get().then(function(snap) {
     orders = [];
     snap.forEach(function(doc) { var d = doc.data(); d.id = doc.id; orders.push(d); });
-    console.log('Orders loaded:', orders.length);
+    console.log('Orders:', orders.length);
     done();
   }).catch(function(e) { console.log(e); done(); });
 
@@ -88,6 +89,13 @@ function loadAllData(callback) {
   db.collection('users').get().then(function(snap) {
     users = [];
     snap.forEach(function(doc) { var d = doc.data(); d.id = doc.id; users.push(d); });
+    done();
+  }).catch(function(e) { done(); });
+
+  db.collection('routes').get().then(function(snap) {
+    routes = [];
+    snap.forEach(function(doc) { var d = doc.data(); d.id = doc.id; routes.push(d); });
+    console.log('Routes:', routes.length);
     done();
   }).catch(function(e) { done(); });
 }
@@ -148,7 +156,7 @@ function doSignup() {
     if (!snap.empty) { err.textContent = 'Ye username pehle se mojood hai'; return; }
     var adminUser = {
       user: user, pass: pass, display: user, isAdmin: true,
-      perms: { newOrder: true, deliver: true, shopkeepers: true, history: true, settings: true },
+      perms: { newOrder: true, deliver: true, shopkeepers: true, history: true, settings: true, routes: true },
       createdAt: new Date().toISOString()
     };
     db.collection('users').add(adminUser).then(function(ref) {
@@ -236,6 +244,7 @@ function showApp() {
   prepareOrderForm();
   renderHistory();
   renderSettings();
+  renderRoutes();
   if (isAdmin()) renderUsers();
 }
 
@@ -246,6 +255,7 @@ function renderSidebarNav() {
   html += '<button class="nav-btn active" onclick="showPage(\'dashboard\', this)"><i class="fa fa-home"></i> <span>Dashboard</span></button>';
   if (can('newOrder')) html += '<button class="nav-btn" onclick="showPage(\'neworder\', this)"><i class="fa fa-plus-circle"></i> <span>Naya Order</span></button>';
   html += '<button class="nav-btn" onclick="showPage(\'orders\', this)"><i class="fa fa-truck"></i> <span>Orders / Loading</span></button>';
+  if (can('routes')) html += '<button class="nav-btn" onclick="showPage(\'routes\', this)"><i class="fa fa-route"></i> <span>Delivery Routes</span></button>';
   if (can('shopkeepers')) html += '<button class="nav-btn" onclick="showPage(\'shopkeepers\', this)"><i class="fa fa-users"></i> <span>Shopkeepers</span></button>';
   html += '<button class="nav-btn" onclick="showPage(\'delivery\', this)"><i class="fa fa-check-circle"></i> <span>Delivery</span></button>';
   if (can('history')) html += '<button class="nav-btn" onclick="showPage(\'history\', this)"><i class="fa fa-clock"></i> <span>History</span></button>';
@@ -341,6 +351,7 @@ function showPage(pageId, btn) {
   if (pageId === 'history' && !can('history')) { alert('Permission nahi hai'); return; }
   if (pageId === 'settings' && !can('settings')) { alert('Permission nahi hai'); return; }
   if (pageId === 'users' && !isAdmin()) { alert('Sirf Admin'); return; }
+  if (pageId === 'routes' && !can('routes')) { alert('Permission nahi hai'); return; }
   var pages = document.querySelectorAll('.page');
   for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
   var target = document.getElementById(pageId);
@@ -362,6 +373,7 @@ function showPage(pageId, btn) {
   if (pageId === 'history') renderHistory();
   if (pageId === 'settings') renderSettings();
   if (pageId === 'users') renderUsers();
+  if (pageId === 'routes') renderRoutes();
   window.scrollTo(0, 0);
 }
 
@@ -457,7 +469,8 @@ function saveUser() {
     deliver: document.getElementById('permDeliver').checked,
     shopkeepers: document.getElementById('permShopkeepers').checked,
     history: document.getElementById('permHistory').checked,
-    settings: document.getElementById('permSettings').checked
+    settings: document.getElementById('permSettings').checked,
+    routes: document.getElementById('permRoutes').checked
   };
   if (id) {
     for (var i = 0; i < users.length; i++) {
@@ -489,6 +502,7 @@ function resetUserForm() {
   document.getElementById('permShopkeepers').checked = false;
   document.getElementById('permHistory').checked = true;
   document.getElementById('permSettings').checked = false;
+  document.getElementById('permRoutes').checked = true;
   document.getElementById('userFormTitle').textContent = 'Naya User Banayein';
 }
 function editUser(id) {
@@ -505,6 +519,7 @@ function editUser(id) {
       document.getElementById('permShopkeepers').checked = u.perms.shopkeepers === true;
       document.getElementById('permHistory').checked = u.perms.history === true;
       document.getElementById('permSettings').checked = u.perms.settings === true;
+      document.getElementById('permRoutes').checked = u.perms.routes === true;
       document.getElementById('userFormTitle').textContent = 'User Edit Karein';
       window.scrollTo(0, 0);
     }
@@ -537,7 +552,7 @@ function renderUsers() {
     var permsList = [
       { k: 'newOrder', label: 'Naya Order' }, { k: 'deliver', label: 'Deliver' },
       { k: 'shopkeepers', label: 'Shopkeepers' }, { k: 'history', label: 'History' },
-      { k: 'settings', label: 'Settings' }
+      { k: 'settings', label: 'Settings' }, { k: 'routes', label: 'Routes' }
     ];
     for (var j = 0; j < permsList.length; j++) {
       var on = u.isAdmin || (u.perms && u.perms[permsList[j].k] === true);
@@ -604,9 +619,9 @@ function renderDashboard() {
     list.innerHTML = rows || '<div class="empty">Sab deliver ho gaya!</div>';
   }
   renderPendingShopkeeperList();
+  renderDashboardRoutes();
 }
 
-// ================== TODAY'S PENDING SHOPKEEPER LIST ==================
 function renderPendingShopkeeperList() {
   var today = todayStr();
   var list = document.getElementById('pendingShopList');
@@ -736,7 +751,7 @@ function saveShopkeeper() {
         saveToFirebase('shopkeepers', shopkeepers[i].id, shopkeepers[i]);
       }
     }
-    resetShopForm(); renderShopkeepers(); renderDashboard(); renderShopPickerGrid();
+    resetShopForm(); renderShopkeepers(); renderDashboard(); renderShopPickerGrid(); renderRouteShopPicker();
     alert('Shopkeeper save!'); return;
   }
   var newShop = { name: name, mobile: mobile, address: address, createdAt: new Date().toISOString() };
@@ -744,7 +759,7 @@ function saveShopkeeper() {
     db.collection('shopkeepers').add(newShop).then(function(ref) {
       newShop.id = ref.id;
       shopkeepers.push(newShop);
-      resetShopForm(); renderShopkeepers(); renderDashboard(); renderShopPickerGrid();
+      resetShopForm(); renderShopkeepers(); renderDashboard(); renderShopPickerGrid(); renderRouteShopPicker();
       alert('Shopkeeper save!');
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
@@ -779,7 +794,7 @@ function deleteShopkeeper(id) {
     else deleteFromFirebase('shopkeepers', shopkeepers[i].id);
   }
   shopkeepers = newList;
-  renderShopkeepers(); renderDashboard(); renderShopPickerGrid();
+  renderShopkeepers(); renderDashboard(); renderShopPickerGrid(); renderRouteShopPicker();
 }
 function renderShopkeepers() {
   var list = document.getElementById('shopkeepersList');
@@ -818,7 +833,279 @@ function renderShopkeepers() {
   }
 }
 
-// ================== NEW ORDER (3-STEP FLOW) ==================
+// ================== DELIVERY ROUTES ==================
+function saveRoute() {
+  if (!can('routes')) { alert('Permission nahi hai'); return; }
+  var id = document.getElementById('routeId').value;
+  var name = document.getElementById('routeName').value.trim();
+  if (!name) { alert('Route ka naam daalein!'); return; }
+  if (selectedRouteShops.length === 0) { alert('Kam az kam ek shopkeeper chunein!'); return; }
+
+  if (id) {
+    for (var i = 0; i < routes.length; i++) {
+      if (routes[i].id == id) {
+        routes[i].name = name;
+        routes[i].shopIds = selectedRouteShops.slice();
+        routes[i].updatedAt = new Date().toISOString();
+        saveToFirebase('routes', routes[i].id, routes[i]);
+      }
+    }
+    alert('Route update ho gaya!');
+    resetRouteForm(); renderRoutes(); renderDashboardRoutes();
+    return;
+  }
+
+  var newRoute = {
+    name: name,
+    shopIds: selectedRouteShops.slice(),
+    createdBy: currentUser ? currentUser.user : 'unknown',
+    createdAt: new Date().toISOString()
+  };
+  if (firebaseReady) {
+    db.collection('routes').add(newRoute).then(function(ref) {
+      newRoute.id = ref.id;
+      routes.push(newRoute);
+      alert('Route ban gaya!');
+      resetRouteForm(); renderRoutes(); renderDashboardRoutes();
+    }).catch(function(e) { alert('Error: ' + e.message); });
+  }
+}
+
+function resetRouteForm() {
+  document.getElementById('routeId').value = '';
+  document.getElementById('routeName').value = '';
+  selectedRouteShops = [];
+  document.getElementById('routeFormTitle').textContent = 'Naya Route Banayein';
+  renderRouteShopPicker();
+}
+
+function editRoute(id) {
+  if (!can('routes')) { alert('Permission nahi hai'); return; }
+  for (var i = 0; i < routes.length; i++) {
+    if (routes[i].id == id) {
+      var r = routes[i];
+      document.getElementById('routeId').value = r.id;
+      document.getElementById('routeName').value = r.name;
+      selectedRouteShops = (r.shopIds || []).slice();
+      document.getElementById('routeFormTitle').textContent = 'Route Edit Karein';
+      renderRouteShopPicker();
+      window.scrollTo(0, 0);
+    }
+  }
+}
+
+function deleteRoute(id) {
+  if (!can('routes')) { alert('Permission nahi hai'); return; }
+  if (!confirm('Pakka route delete?')) return;
+  var newList = [];
+  for (var i = 0; i < routes.length; i++) {
+    if (routes[i].id != id) newList.push(routes[i]);
+    else deleteFromFirebase('routes', routes[i].id);
+  }
+  routes = newList;
+  renderRoutes(); renderDashboardRoutes();
+}
+
+function renderRouteShopPicker() {
+  var box = document.getElementById('routeShopPicker');
+  if (!box) return;
+  if (shopkeepers.length === 0) {
+    box.innerHTML = '<p class="hint">Pehle shopkeeper add karein.</p>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < shopkeepers.length; i++) {
+    var s = shopkeepers[i];
+    var selected = selectedRouteShops.indexOf(s.id) !== -1;
+    html += '<label class="route-shop-item ' + (selected ? 'selected' : '') + '">' +
+      '<input type="checkbox" ' + (selected ? 'checked' : '') + ' onchange="toggleRouteShop(\'' + s.id + '\', this.checked)" />' +
+      '<span><i class="fa fa-store"></i> ' + s.name + '</span>' +
+      '</label>';
+  }
+  box.innerHTML = html;
+}
+
+function toggleRouteShop(shopId, checked) {
+  if (checked) {
+    if (selectedRouteShops.indexOf(shopId) === -1) selectedRouteShops.push(shopId);
+  } else {
+    var idx = selectedRouteShops.indexOf(shopId);
+    if (idx !== -1) selectedRouteShops.splice(idx, 1);
+  }
+  renderRouteShopPicker();
+}
+
+function renderRoutes() {
+  var list = document.getElementById('routesList');
+  if (!list) return;
+  if (routes.length === 0) {
+    list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi bana.</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < routes.length; i++) {
+    var r = routes[i];
+    var stats = getRouteStats(r);
+    html += '<div class="route-card" onclick="openRouteModal(\'' + r.id + '\')">' +
+      '<div class="route-card-head">' +
+        '<div class="route-card-name"><i class="fa fa-route"></i> ' + r.name + '</div>' +
+      '</div>' +
+      '<div class="route-card-stats">' +
+        '<span class="route-stat"><i class="fa fa-store"></i> ' + (r.shopIds ? r.shopIds.length : 0) + ' shopkeepers</span>' +
+        '<span class="route-stat green"><i class="fa fa-weight-hanging"></i> ' + stats.totalQtyText + '</span>' +
+      '</div>' +
+      '<div class="route-actions" onclick="event.stopPropagation()">' +
+        '<button class="btn small" onclick="editRoute(\'' + r.id + '\')"><i class="fa fa-edit"></i> Edit</button>' +
+        '<button class="btn small danger" onclick="deleteRoute(\'' + r.id + '\')"><i class="fa fa-trash"></i></button>' +
+      '</div>' +
+    '</div>';
+  }
+  list.innerHTML = html;
+}
+
+// Route ke pending items ka total nikaalo
+function getRouteStats(route) {
+  var totalKg = 0;
+  var pendingShopCount = 0;
+  var today = todayStr();
+  var shopIds = route.shopIds || [];
+  for (var i = 0; i < shopIds.length; i++) {
+    var sid = shopIds[i];
+    var hasPending = false;
+    for (var j = 0; j < orders.length; j++) {
+      var o = orders[j];
+      if (o.shopId != sid) continue;
+      if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+      // Aaj ke ya purane pending (jo auto-shift ho kar aaj aaye)
+      hasPending = true;
+      for (var k = 0; k < o.items.length; k++) {
+        var it = o.items[k];
+        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        totalKg += (remM * 40) + remK;
+      }
+    }
+    if (hasPending) pendingShopCount++;
+  }
+  return {
+    totalKg: totalKg,
+    totalQtyText: totalKgText(totalKg),
+    pendingShopCount: pendingShopCount
+  };
+}
+
+function renderDashboardRoutes() {
+  var list = document.getElementById('dashboardRoutesList');
+  var badge = document.getElementById('routesBadge');
+  if (!list) return;
+  if (routes.length === 0) {
+    if (badge) badge.textContent = '0';
+    list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi. "Delivery Routes" page se banao.</div>';
+    return;
+  }
+  if (badge) badge.textContent = routes.length;
+  var html = '';
+  for (var i = 0; i < routes.length; i++) {
+    var r = routes[i];
+    var stats = getRouteStats(r);
+    html += '<div class="route-card" onclick="openRouteModal(\'' + r.id + '\')">' +
+      '<div class="route-card-head">' +
+        '<div class="route-card-name"><i class="fa fa-route"></i> ' + r.name + '</div>' +
+        '<i class="fa fa-chevron-right" style="color:#6366f1;"></i>' +
+      '</div>' +
+      '<div class="route-card-stats">' +
+        '<span class="route-stat"><i class="fa fa-store"></i> ' + (r.shopIds ? r.shopIds.length : 0) + ' shops</span>' +
+        '<span class="route-stat"><i class="fa fa-clock"></i> ' + stats.pendingShopCount + ' pending</span>' +
+        '<span class="route-stat green"><i class="fa fa-weight-hanging"></i> ' + stats.totalQtyText + '</span>' +
+      '</div>' +
+    '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function openRouteModal(routeId) {
+  var route = null;
+  for (var i = 0; i < routes.length; i++) {
+    if (routes[i].id == routeId) route = routes[i];
+  }
+  if (!route) return;
+
+  document.getElementById('routeModalTitle').textContent = route.name;
+  var body = document.getElementById('routeModalBody');
+  var shopIds = route.shopIds || [];
+  if (shopIds.length === 0) {
+    body.innerHTML = '<div class="empty">Is route mein koi shopkeeper nahi.</div>';
+    document.getElementById('routeModal').classList.add('active');
+    return;
+  }
+
+  var html = '';
+  var grandTotalKg = 0;
+
+  for (var i = 0; i < shopIds.length; i++) {
+    var sid = shopIds[i];
+    var shop = null;
+    for (var j = 0; j < shopkeepers.length; j++) {
+      if (shopkeepers[j].id == sid) shop = shopkeepers[j];
+    }
+    if (!shop) continue;
+
+    // Is shop ke saare pending orders (kisi bhi date ke)
+    var shopItems = [];
+    for (var j = 0; j < orders.length; j++) {
+      var o = orders[j];
+      if (o.shopId != sid) continue;
+      if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+      for (var k = 0; k < o.items.length; k++) {
+        var it = o.items[k];
+        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        if (remM <= 0 && remK <= 0) continue;
+        shopItems.push({ product: it.product, maund: remM, kg: remK, orderId: o.id, orderDate: o.date });
+      }
+    }
+
+    var shopTotalKg = 0;
+    for (var x = 0; x < shopItems.length; x++) {
+      shopTotalKg += (shopItems[x].maund * 40) + shopItems[x].kg;
+    }
+    grandTotalKg += shopTotalKg;
+
+    var itemsHtml = '';
+    if (shopItems.length === 0) {
+      itemsHtml = '<p style="color:#94a3b8;font-size:13px;">Koi pending order nahi.</p>';
+    } else {
+      for (var x = 0; x < shopItems.length; x++) {
+        var si = shopItems[x];
+        itemsHtml += '<p>📦 <b>' + si.product + '</b> — ' + qtyText(si.maund, si.kg) + '</p>';
+      }
+    }
+
+    html += '<div class="route-detail-shop">' +
+      '<div class="route-detail-shop-head">' +
+        '<h4><i class="fa fa-store"></i> ' + shop.name + '</h4>' +
+        '<span class="qty-pill">' + totalKgText(shopTotalKg) + '</span>' +
+      '</div>' +
+      '<p style="font-size:13px;color:#64748b;margin-bottom:6px;"><i class="fa fa-phone"></i> ' + shop.mobile + '</p>' +
+      '<div class="route-detail-items">' + itemsHtml + '</div>' +
+    '</div>';
+  }
+
+  // Grand total
+  html += '<div class="load-summary" style="margin-top:18px;margin-bottom:0;">' +
+    '<div><p>Route Ka Total Load</p><div class="big-num">' + totalKgText(grandTotalKg) + '</div></div>' +
+    '<div style="text-align:right;"><p>Shopkeepers</p><div class="big-num">' + shopIds.length + '</div></div>' +
+  '</div>';
+
+  body.innerHTML = html;
+  document.getElementById('routeModal').classList.add('active');
+}
+
+function closeRouteModal() {
+  document.getElementById('routeModal').classList.remove('active');
+}
+
+// ================== NEW ORDER (3-STEP) ==================
 function prepareOrderForm() {
   selectedShopIdForOrder = null;
   selectedProductForOrder = null;
@@ -861,7 +1148,6 @@ function showNewOrderStep(step) {
 function renderShopPickerGrid() {
   var grid = document.getElementById('shopPickerGrid');
   if (!grid) return;
-  console.log('renderShopPickerGrid: shopkeepers =', shopkeepers.length);
   if (shopkeepers.length === 0) {
     grid.innerHTML = '<div class="empty" style="grid-column: 1 / -1;"><i class="fa fa-users"></i>Pehle shopkeeper add karein (Shopkeepers page se).</div>';
     return;
@@ -928,7 +1214,6 @@ function selectProductForOrder(productName) {
   selectedProductForOrder = productName;
   document.getElementById('qtyProductName').textContent = productName;
 
-  // Agar pehle se added hai to uski values dikhao
   var existingM = 0, existingK = 0;
   for (var i = 0; i < currentOrderItems.length; i++) {
     if (currentOrderItems[i].product === productName) {
@@ -958,15 +1243,8 @@ function cancelQty() {
 function confirmQtyAdd() {
   var m = parseInt(document.getElementById('qtyMaund').value) || 0;
   var k = parseInt(document.getElementById('qtyKg').value) || 0;
-  if (m === 0 && k === 0) {
-    alert('Kam az kam maund ya kg daalein!');
-    return;
-  }
-  if (k > 39) {
-    alert('Kg 39 se zyada nahi ho sakta. Maund use karein.');
-    return;
-  }
-  // Check karo product pehle se added hai?
+  if (m === 0 && k === 0) { alert('Kam az kam maund ya kg daalein!'); return; }
+  if (k > 39) { alert('Kg 39 se zyada nahi ho sakta. Maund use karein.'); return; }
   var found = false;
   for (var i = 0; i < currentOrderItems.length; i++) {
     if (currentOrderItems[i].product === selectedProductForOrder) {
@@ -1053,15 +1331,9 @@ function saveMultiOrder() {
   }
 }
 
-// New Order page ka back button
 function newOrderBack() {
-  // Step 3 pe hain?
   var step3 = document.getElementById('quantityStep');
-  if (step3 && step3.style.display === 'block') {
-    cancelQty();
-    return;
-  }
-  // Step 2 pe hain?
+  if (step3 && step3.style.display === 'block') { cancelQty(); return; }
   var step2 = document.getElementById('productPickerStep');
   if (step2 && step2.style.display === 'block') {
     if (currentOrderItems.length > 0) {
@@ -1070,7 +1342,6 @@ function newOrderBack() {
     changeShopkeeper();
     return;
   }
-  // Step 1 pe hain? Seedha dashboard
   showPage('dashboard');
 }
 
