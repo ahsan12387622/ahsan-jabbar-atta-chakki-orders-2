@@ -88,33 +88,93 @@
     <i class="fa fa-user-circle"></i>
     <div><div id="userNameLabel">User</div><div id="userRoleLabel" class="user-role">Staff</div></div>
   </div>
+
+  <!-- Edit Menu button -->
+  <div class="edit-menu-wrap">
+    <button class="btn small edit-menu-btn" onclick="toggleMenuEdit()" id="editMenuBtn">
+      <i class="fa fa-pen"></i> Edit Menu
+    </button>
+  </div>
+
   <nav class="sidebar-nav" id="sidebarNav"></nav>
+
+  <!-- Edit Menu Panel (initially hidden) -->
+  <div id="menuEditPanel" class="menu-edit-panel" style="display:none;">
+    <h4><i class="fa fa-bars"></i> Menu Customize</h4>
+    <p class="menu-edit-hint">Checkbox se hide/show, arrows se order</p>
+    <div id="menuEditList"></div>
+    <button class="btn small danger" onclick="resetMenuLayout()" style="width:100%;margin-top:10px;">
+      <i class="fa fa-rotate-left"></i> Reset Menu
+    </button>
+    <button class="btn primary small" onclick="toggleMenuEdit()" style="width:100%;margin-top:6px;">
+      <i class="fa fa-check"></i> Done
+    </button>
+  </div>
 </aside>
 
 <main class="main" id="main">
 
   <section id="dashboard" class="page active">
-    <div class="page-header"><div><h1>Dashboard</h1><p class="page-sub" id="todayDateLabel">—</p></div></div>
-    <div class="big-buttons">
-      <button class="big-btn new-order" onclick="showPage('neworder')"><i class="fa fa-plus-circle"></i><span>Naya Order</span><small>Order add karein</small></button>
-      <button class="big-btn new-route" onclick="showPage('routes')"><i class="fa fa-route"></i><span>Delivery Route Add</span><small>Route banayein</small></button>
-      <button class="big-btn all-orders" onclick="showPage('orders')"><i class="fa fa-truck"></i><span>Orders / Loading</span><small>Sab orders dekhein</small></button>
+    <div class="page-header">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="page-sub" id="todayDateLabel">—</p>
+        </div>
+        <div>
+          <button class="btn small edit-dash-btn" onclick="toggleDashboardEdit()" id="editDashBtn">
+            <i class="fa fa-pen"></i> Edit Dashboard
+          </button>
+          <button class="btn primary small" onclick="toggleDashboardEdit()" id="doneDashBtn" style="display:none;">
+            <i class="fa fa-check"></i> Done
+          </button>
+          <button class="btn small danger" onclick="resetDashboardLayout()" id="resetDashBtn" style="display:none;">
+            <i class="fa fa-rotate-left"></i> Reset
+          </button>
+        </div>
+      </div>
     </div>
-    <div class="cards">
-      <div class="card blue"><div class="card-icon"><i class="fa fa-users"></i></div><div><h3 id="totalShopkeepers">0</h3><p>Shopkeepers</p></div></div>
-      <div class="card orange"><div class="card-icon"><i class="fa fa-calendar-day"></i></div><div><h3 id="todayOrders">0</h3><p>Aaj ke Orders</p></div></div>
-      <div class="card red"><div class="card-icon"><i class="fa fa-hourglass-half"></i></div><div><h3 id="pendingOrders">0</h3><p>Pending</p></div></div>
-      <div class="card green"><div class="card-icon"><i class="fa fa-check-circle"></i></div><div><h3 id="deliveredOrders">0</h3><p>Delivered</p></div></div>
+
+    <!-- Dashboard Edit Controls (initially hidden) -->
+    <div id="dashEditPanel" class="dash-edit-panel" style="display:none;">
+      <h4><i class="fa fa-sliders"></i> Customize Dashboard</h4>
+      <p class="menu-edit-hint">Checkbox se hide/show, slider se size</p>
+      <div id="dashEditList"></div>
     </div>
-    <div class="box">
+
+    <!-- ===== Big Buttons ===== -->
+    <div id="sec-bigButtons" class="dash-section">
+      <div class="big-buttons">
+        <button class="big-btn new-order" onclick="showPage('neworder')"><i class="fa fa-plus-circle"></i><span>Naya Order</span><small>Order add karein</small></button>
+        <button class="big-btn new-route" onclick="showPage('routes')"><i class="fa fa-route"></i><span>Delivery Route Add</span><small>Route banayein</small></button>
+        <button class="big-btn all-orders" onclick="showPage('orders')"><i class="fa fa-truck"></i><span>Orders / Loading</span><small>Sab orders dekhein</small></button>
+      </div>
+    </div>
+
+    <!-- ===== 4 Cards ===== -->
+    <div id="sec-cards" class="dash-section">
+      <div class="cards">
+        <div class="card blue"><div class="card-icon"><i class="fa fa-users"></i></div><div><h3 id="totalShopkeepers">0</h3><p>Shopkeepers</p></div></div>
+        <div class="card orange"><div class="card-icon"><i class="fa fa-calendar-day"></i></div><div><h3 id="todayOrders">0</h3><p>Aaj ke Orders</p></div></div>
+        <div class="card red"><div class="card-icon"><i class="fa fa-hourglass-half"></i></div><div><h3 id="pendingOrders">0</h3><p>Pending</p></div></div>
+        <div class="card green"><div class="card-icon"><i class="fa fa-check-circle"></i></div><div><h3 id="deliveredOrders">0</h3><p>Delivered</p></div></div>
+      </div>
+    </div>
+
+    <!-- ===== Pending Shopkeeper Order ===== -->
+    <div id="sec-pendingShops" class="dash-section box">
       <div class="box-head"><h2><i class="fa fa-bell"></i> Today's Pending Shopkeeper Order</h2><span class="pill" id="pendingShopBadge">0</span></div>
       <div id="pendingShopList" class="pending-shop-list"></div>
     </div>
-    <div class="box">
+
+    <!-- ===== Aaj Ka Load ===== -->
+    <div id="sec-load" class="dash-section box">
       <div class="box-head"><h2><i class="fa fa-truck"></i> Aaj Ka Load</h2><span class="pill" id="todayLoadBadge">0</span></div>
       <div id="todayLoadList"></div>
     </div>
-    <div class="box">
+
+    <!-- ===== Aaj Ke Routes ===== -->
+    <div id="sec-routes" class="dash-section box">
       <div class="box-head"><h2><i class="fa fa-route"></i> Aaj Ke Delivery Routes</h2><span class="pill" id="routesBadge">0</span></div>
       <div id="dashboardRoutesList" class="routes-list"></div>
     </div>
@@ -319,11 +379,18 @@
       </div>
       <div id="productsList" class="product-list"></div>
     </div>
+    <!-- Hidden Menu Items Box -->
+    <div class="box" id="hiddenMenuBox" style="display:none;">
+      <h3><i class="fa fa-eye-slash"></i> Hidden Menu Items</h3>
+      <p class="hint">Ye menu items aapne sidebar se hide kiye hain. Yahan se access karein.</p>
+      <div id="hiddenMenuList" class="hidden-menu-list"></div>
+    </div>
   </section>
 
 </main>
 </div>
 
+<!-- MODALS -->
 <div id="pendingShopModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closePendingShopModal()">&times;</span>
