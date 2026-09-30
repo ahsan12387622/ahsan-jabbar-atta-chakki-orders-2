@@ -51,6 +51,7 @@ var currentCombinedOrderIds = [];
 
 var selectedShopIdForOrder = null;
 var selectedProductForOrder = null;
+var selectedEditIndex = -1;
 var currentOrderItems = [];
 var selectedRouteShops = [];
 
@@ -248,6 +249,50 @@ function showApp() {
   renderSettings();
   renderRoutes();
   if (isAdmin()) renderUsers();
+}
+
+// ================== MANUAL SYNC ==================
+function manualSync() {
+  if (!firebaseReady) {
+    alert('Firebase load nahi hua. Page refresh karein.');
+    return;
+  }
+
+  var btn = document.getElementById('syncBtn');
+  var icon = document.getElementById('syncIcon');
+  if (icon) icon.className = 'fa fa-sync-alt fa-spin';
+  if (btn) btn.disabled = true;
+
+  loadAllData(function() {
+    autoShiftPendingOrders();
+
+    renderDashboard();
+    renderShopkeepers();
+    renderRoutes();
+    renderHistory();
+    renderSettings();
+    if (isAdmin()) renderUsers();
+    if (can('newOrder')) prepareOrderForm();
+
+    var ordPage = document.getElementById('orders');
+    if (ordPage && ordPage.classList.contains('active')) {
+      renderOrdersPage();
+    }
+    var delPage = document.getElementById('delivery');
+    if (delPage && delPage.classList.contains('active')) {
+      renderDelivery();
+    }
+
+    if (icon) icon.className = 'fa fa-sync-alt';
+    if (btn) btn.disabled = false;
+
+    var titleEl = document.getElementById('topbarTitle');
+    var oldTitle = titleEl ? titleEl.textContent : '';
+    if (titleEl) {
+      titleEl.textContent = '✓ Sync ho gaya!';
+      setTimeout(function() { titleEl.textContent = oldTitle; }, 1500);
+    }
+  });
 }
 
 // ================== SIDEBAR ==================
@@ -658,7 +703,6 @@ function renderPendingShopkeeperList() {
   list.innerHTML = html;
 }
 
-// ============ UPDATED: Combined product wise pending shop modal ============
 function openPendingShopModal(shopId) {
   var today = todayStr();
   var shopName = 'Unknown', shopMobile = '';
@@ -681,7 +725,6 @@ function openPendingShopModal(shopId) {
     return;
   }
 
-  // Product wise combine karo
   var productMap = {};
   var productOrder = [];
 
@@ -741,7 +784,6 @@ function openPendingShopModal(shopId) {
   document.getElementById('pendingShopModal').classList.add('active');
 }
 
-// Combined product deliver modal
 function openCombinedDeliverModal(productName, orderIds) {
   if (!can('deliver')) { alert('Permission nahi hai'); return; }
   currentCombinedProduct = productName;
@@ -1318,16 +1360,30 @@ function renderDashboardRoutes() {
   var list = document.getElementById('dashboardRoutesList');
   var badge = document.getElementById('routesBadge');
   if (!list) return;
-  if (routes.length === 0) {
-    if (badge) badge.textContent = '0';
-    list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi. "Delivery Route Add" se banao.</div>';
+
+  var visibleRoutes = [];
+  for (var i = 0; i < routes.length; i++) {
+    var stats = getRouteStats(routes[i]);
+    if (stats.pendingShopCount > 0) {
+      visibleRoutes.push({ route: routes[i], stats: stats });
+    }
+  }
+
+  if (badge) badge.textContent = visibleRoutes.length;
+
+  if (visibleRoutes.length === 0) {
+    if (routes.length === 0) {
+      list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi. "Delivery Route Add" se banao.</div>';
+    } else {
+      list.innerHTML = '<div class="empty"><i class="fa fa-check-circle"></i>Aaj koi route pending nahi. Sab deliver ho gaya!</div>';
+    }
     return;
   }
-  if (badge) badge.textContent = routes.length;
+
   var html = '';
-  for (var i = 0; i < routes.length; i++) {
-    var r = routes[i];
-    var stats = getRouteStats(r);
+  for (var i = 0; i < visibleRoutes.length; i++) {
+    var r = visibleRoutes[i].route;
+    var stats = visibleRoutes[i].stats;
     var breakdownHtml = renderRouteProductBreakdown(stats.productBreakdown);
     html += '<div class="route-card" onclick="openRouteModal(\'' + r.id + '\')">' +
       '<div class="route-card-head">' +
@@ -1440,6 +1496,7 @@ function closeRouteModal() {
 function prepareOrderForm() {
   selectedShopIdForOrder = null;
   selectedProductForOrder = null;
+  selectedEditIndex = -1;
   currentOrderItems = [];
   showNewOrderStep(1);
   var notesEl = document.getElementById('orderNotes');
@@ -1528,12 +1585,17 @@ function renderProductPickerGrid() {
   var html = '';
   for (var i = 0; i < products.length; i++) {
     var p = products[i];
-    var added = false;
+    var count = 0;
     for (var j = 0; j < currentOrderItems.length; j++) {
-      if (currentOrderItems[j].product === p) { added = true; break; }
+      if (currentOrderItems[j].product === p) count++;
+    }
+    var added = count > 0;
+    var badgeHtml = '';
+    if (added) {
+      badgeHtml = '<span class="pp-count-badge">' + count + '</span>';
     }
     html += '<div class="product-picker-card' + (added ? ' added' : '') + '" onclick="selectProductForOrder(\'' + p.replace(/'/g, "\\'") + '\')">' +
-      (added ? '<i class="fa fa-check-circle pp-check"></i>' : '') +
+      badgeHtml +
       '<div class="pp-icon"><i class="fa fa-box"></i></div>' +
       '<div class="pp-name">' + p + '</div>' +
       '</div>';
@@ -1542,21 +1604,42 @@ function renderProductPickerGrid() {
 }
 
 function selectProductForOrder(productName) {
-  selectedProductForOrder = productName;
-  document.getElementById('qtyProductName').textContent = productName;
-
-  var existingM = 0, existingK = 0;
+  var existingIndexes = [];
   for (var i = 0; i < currentOrderItems.length; i++) {
-    if (currentOrderItems[i].product === productName) {
-      existingM = currentOrderItems[i].maund;
-      existingK = currentOrderItems[i].kg;
-      break;
-    }
+    if (currentOrderItems[i].product === productName) existingIndexes.push(i);
   }
-  document.getElementById('qtyMaund').value = existingM > 0 ? existingM : '';
-  document.getElementById('qtyKg').value = existingK > 0 ? existingK : '';
-  updateQtyPreview();
-  showNewOrderStep(3);
+
+  if (existingIndexes.length > 0) {
+    var choice = confirm(
+      productName + ' pehle se ' + existingIndexes.length + ' baar add hai.\n\n' +
+      'OK = NAYA ADD karein (nayi entry)\n' +
+      'Cancel = EDIT karein (purani entry badlein)'
+    );
+
+    if (choice) {
+      selectedProductForOrder = productName;
+      selectedEditIndex = -1;
+      document.getElementById('qtyProductName').textContent = productName;
+      document.getElementById('qtyMaund').value = '';
+      document.getElementById('qtyKg').value = '';
+      updateQtyPreview();
+      showNewOrderStep(3);
+    } else {
+      if (existingIndexes.length === 1) {
+        editAddedProduct(existingIndexes[0]);
+      } else {
+        alert('Is product ki ' + existingIndexes.length + ' entries hain. Neeche "Add Ho Chuke Products" list mein se edit karein.');
+      }
+    }
+  } else {
+    selectedProductForOrder = productName;
+    selectedEditIndex = -1;
+    document.getElementById('qtyProductName').textContent = productName;
+    document.getElementById('qtyMaund').value = '';
+    document.getElementById('qtyKg').value = '';
+    updateQtyPreview();
+    showNewOrderStep(3);
+  }
 }
 
 function updateQtyPreview() {
@@ -1568,6 +1651,7 @@ function updateQtyPreview() {
 
 function cancelQty() {
   selectedProductForOrder = null;
+  selectedEditIndex = -1;
   showNewOrderStep(2);
 }
 
@@ -1576,19 +1660,15 @@ function confirmQtyAdd() {
   var k = parseInt(document.getElementById('qtyKg').value) || 0;
   if (m === 0 && k === 0) { alert('Kam az kam maund ya kg daalein!'); return; }
   if (k > 39) { alert('Kg 39 se zyada nahi ho sakta. Maund use karein.'); return; }
-  var found = false;
-  for (var i = 0; i < currentOrderItems.length; i++) {
-    if (currentOrderItems[i].product === selectedProductForOrder) {
-      currentOrderItems[i].maund = m;
-      currentOrderItems[i].kg = k;
-      found = true;
-      break;
-    }
-  }
-  if (!found) {
+
+  if (selectedEditIndex >= 0 && selectedEditIndex < currentOrderItems.length) {
+    currentOrderItems[selectedEditIndex].maund = m;
+    currentOrderItems[selectedEditIndex].kg = k;
+  } else {
     currentOrderItems.push({ product: selectedProductForOrder, maund: m, kg: k });
   }
   selectedProductForOrder = null;
+  selectedEditIndex = -1;
   showNewOrderStep(2);
 }
 
@@ -1620,7 +1700,13 @@ function renderAddedProducts() {
 
 function editAddedProduct(idx) {
   var it = currentOrderItems[idx];
-  selectProductForOrder(it.product);
+  selectedProductForOrder = it.product;
+  selectedEditIndex = idx;
+  document.getElementById('qtyProductName').textContent = it.product;
+  document.getElementById('qtyMaund').value = it.maund > 0 ? it.maund : '';
+  document.getElementById('qtyKg').value = it.kg > 0 ? it.kg : '';
+  updateQtyPreview();
+  showNewOrderStep(3);
 }
 
 function removeAddedProduct(idx) {
@@ -1769,6 +1855,8 @@ function openDeliverModal(orderId, product) {
   if (!can('deliver')) { alert('Permission nahi hai'); return; }
   currentDeliverOrderId = orderId;
   currentDeliverProduct = product;
+  currentCombinedProduct = null;
+  currentCombinedOrderIds = [];
   var order = null;
   for (var i = 0; i < orders.length; i++) { if (orders[i].id == orderId) order = orders[i]; }
   if (!order) return;
@@ -1854,7 +1942,6 @@ function markAllDelivered() {
   alert('Poora deliver ho gaya!');
 }
 
-// Smart confirm — combined mode check
 function confirmDeliverySmart() {
   if (currentCombinedProduct) {
     confirmCombinedDelivery();
