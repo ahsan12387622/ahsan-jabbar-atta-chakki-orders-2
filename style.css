@@ -1,6 +1,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
 body { background: #f1f5f9; color: #1e293b; min-height: 100vh; }
 
+/* ============ LOGIN ============ */
 .login-screen { min-height: 100vh; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); display: flex; align-items: center; justify-content: center; padding: 20px; }
 .login-box { background: #fff; border-radius: 20px; padding: 35px 30px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
 .login-logo { width: 70px; height: 70px; background: linear-gradient(135deg, #16a34a, #15803d); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 32px; color: #fff; margin: 0 auto 18px; }
@@ -10,6 +11,27 @@ body { background: #f1f5f9; color: #1e293b; min-height: 100vh; }
 .login-footer { text-align: center; margin-top: 18px; font-size: 14px; color: #64748b; }
 .login-footer a { color: #16a34a; text-decoration: none; font-weight: 700; }
 
+/* ============ PIN SCREEN ============ */
+.pin-screen { min-height: 100vh; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); display: flex; align-items: center; justify-content: center; padding: 20px; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 300; }
+.pin-box { background: #fff; border-radius: 20px; padding: 35px 30px; max-width: 380px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.4); text-align: center; }
+.pin-logo { width: 70px; height: 70px; background: linear-gradient(135deg, #6366f1, #4f46e5); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 32px; color: #fff; margin: 0 auto 18px; }
+.pin-box h1 { font-size: 22px; margin-bottom: 6px; }
+.pin-sub { color: #16a34a; font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+.pin-hint { color: #64748b; font-size: 13px; margin-bottom: 18px; }
+#pinInput { width: 100%; padding: 18px; font-size: 32px; font-weight: 800; text-align: center; letter-spacing: 12px; border: 2px solid #e2e8f0; border-radius: 14px; background: #f8fafc; color: #1e293b; margin-bottom: 12px; }
+#pinInput:focus { outline: none; border-color: #6366f1; background: #fff; }
+.pin-error { color: #dc2626; font-size: 13px; margin-bottom: 12px; min-height: 18px; font-weight: 600; }
+
+/* ============ PIN SETUP BANNER ============ */
+.pin-setup-banner { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); border-bottom: 3px solid #6366f1; padding: 14px 18px; position: sticky; top: 60px; z-index: 88; }
+.pin-banner-content { display: flex; align-items: center; gap: 12px; max-width: 1300px; margin: 0 auto; flex-wrap: wrap; }
+.pin-banner-content > i { font-size: 28px; color: #4338ca; }
+.pin-banner-text { flex: 1; min-width: 180px; }
+.pin-banner-text strong { color: #3730a3; font-size: 15px; display: block; margin-bottom: 2px; }
+.pin-banner-text p { color: #4338ca; font-size: 12px; }
+.pin-banner-btns { display: flex; gap: 8px; }
+
+/* ============ TOPBAR ============ */
 .topbar { display: flex; justify-content: space-between; align-items: center; background: #1e293b; color: #fff; padding: 12px 18px; position: sticky; top: 0; z-index: 90; }
 .topbar-logo { font-size: 18px; font-weight: 700; color: #4ade80; display: flex; align-items: center; gap: 10px; }
 .topbar-actions { display: flex; gap: 8px; }
@@ -17,6 +39,7 @@ body { background: #f1f5f9; color: #1e293b; min-height: 100vh; }
 .icon-btn:hover { background: rgba(255,255,255,0.2); }
 .icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ============ SIDEBAR ============ */
 .sidebar { width: 280px; background: #1e293b; color: #fff; position: fixed; top: 0; left: 0; bottom: 0; padding: 18px 0; overflow-y: auto; z-index: 100; transition: transform 0.3s; transform: translateX(-100%); }
 .sidebar.open { transform: translateX(0); }
 .sidebar-logo { font-size: 20px; font-weight: 700; padding: 0 20px 18px; border-bottom: 1px solid #334155; margin-bottom: 15px; color: #4ade80; display: flex; align-items: center; gap: 10px; }
@@ -31,9 +54,8 @@ body { background: #f1f5f9; color: #1e293b; min-height: 100vh; }
 .nav-btn.active { background: #16a34a; color: #fff; font-weight: 600; }
 .nav-btn i { width: 22px; text-align: center; }
 
-/* MAIN — always mobile layout */
+/* ============ MAIN ============ */
 .main { padding: 15px; max-width: 100%; margin-left: 0; }
-
 .page { display: none; }
 .page.active { display: block; }
 .page-header { margin-bottom: 20px; }
@@ -126,17 +148,9 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 
 .product-line { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid #f1f5f9; flex-wrap: wrap; gap: 10px; }
 .product-line-info { flex: 1; min-width: 150px; }
-.product-line-info .p-name { font-weight: 700; color: #334155; font-size: 15px; }
-.product-line-info .p-qty { color: #16a34a; font-weight: 800; font-size: 15px; margin-left: 8px; }
-.product-line-info .p-delivered { color: #94a3b8; font-size: 13px; margin-top: 3px; }
 
 .empty { text-align: center; padding: 40px 20px; color: #94a3b8; background: #fff; border-radius: 12px; font-size: 15px; }
 .empty i { font-size: 40px; display: block; margin-bottom: 10px; opacity: 0.4; }
-
-.mode-switch { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-.mode-opt { flex: 1; padding: 18px; border: 2px solid #e2e8f0; background: #fff; border-radius: 12px; cursor: pointer; font-size: 15px; font-weight: 600; color: #64748b; }
-.mode-opt i { display: block; font-size: 22px; margin-bottom: 6px; }
-.mode-opt.active { border-color: #16a34a; background: #f0fdf4; color: #16a34a; }
 
 .product-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .product-chip { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 10px 14px; border-radius: 20px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
@@ -148,7 +162,6 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .close { float: right; font-size: 28px; cursor: pointer; color: #94a3b8; line-height: 1; }
 
 .deliver-row { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
-.deliver-row-head { font-weight: 700; color: #1e293b; margin-bottom: 4px; font-size: 15px; }
 .deliver-row-sub { color: #64748b; font-size: 13px; margin-bottom: 10px; }
 .deliver-qty-row { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .deliver-qty-row .form-group { margin-bottom: 0; }
@@ -175,7 +188,6 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .product-picker-card.added { border-color: #16a34a; background: #dcfce7; }
 .product-picker-card .pp-icon { width: 50px; height: 50px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; margin: 0 auto 10px; }
 .product-picker-card.added .pp-icon { background: linear-gradient(135deg, #16a34a, #15803d); }
-.product-picker-card .pp-name { font-size: 14px; font-weight: 700; color: #1e293b; }
 
 .pp-count-badge {
   position: absolute;
@@ -196,8 +208,6 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 
 .added-products-list { display: flex; flex-direction: column; gap: 8px; }
 .added-product-row { display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 5px solid #16a34a; border-radius: 10px; padding: 14px 16px; flex-wrap: wrap; gap: 10px; }
-.added-product-row .ap-name { font-weight: 700; color: #166534; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-.added-product-row .ap-qty { font-weight: 700; color: #16a34a; font-size: 15px; }
 .added-product-row .ap-actions { display: flex; gap: 6px; }
 
 .selected-shop-bar { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 2px solid #16a34a; border-radius: 14px; padding: 16px 20px; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
@@ -212,8 +222,7 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .qty-big-row { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 18px; }
 .qty-big-field { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 14px; padding: 20px 16px; text-align: center; }
 .qty-big-field:focus-within { border-color: #16a34a; background: #f0fdf4; }
-.qty-big-field label { display: block; font-size: 20px; font-weight: 800; color: #16a34a; letter-spacing: 2px; margin-bottom: 12px; }
-.qty-big-field input { width: 100%; padding: 16px; font-size: 32px; font-weight: 800; text-align: center; border: 2px solid #cbd5e1; border-radius: 12px; background: #fff; color: #1e293b; }
+.qty-big-field input { width: 100%; padding: 16px; font-size: 32px; font-weight: 800; text-align: center; border: 2px solid #cbd5e1; border-radius: 12px; background: #fff; color: #1e293b; margin-top: 8px; }
 .qty-big-field input:focus { outline: none; border-color: #16a34a; }
 .qty-big-field small { display: block; margin-top: 8px; color: #64748b; font-size: 12px; }
 .qty-preview { background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; padding: 18px 22px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
@@ -222,7 +231,7 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .qty-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .qty-actions .btn { margin: 0; }
 
-/* ROUTES */
+/* ============ ROUTES ============ */
 .routes-list { display: flex; flex-direction: column; gap: 10px; }
 .route-card { background: #fff; border: 2px solid #e2e8f0; border-left: 5px solid #6366f1; border-radius: 12px; padding: 16px 18px; cursor: pointer; transition: 0.2s; }
 .route-card:hover { border-color: #6366f1; background: #f5f3ff; }
@@ -244,22 +253,6 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .route-shop-item .shop-name-line i { color: #6366f1; }
 .route-shop-item .other-route-badge { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; margin-left: auto; }
 
-.route-shop-item .shop-order-summary {
-  display: block;
-  font-size: 12px;
-  color: #16a34a;
-  font-weight: 600;
-  margin-top: 4px;
-  background: #f0fdf4;
-  padding: 4px 8px;
-  border-radius: 6px;
-  line-height: 1.4;
-}
-.route-shop-item.selected .shop-order-summary {
-  background: rgba(22, 163, 74, 0.15);
-  color: #15803d;
-}
-
 .route-empty-hint { text-align: center; padding: 30px 20px; color: #94a3b8; background: #f8fafc; border-radius: 12px; font-size: 14px; border: 2px dashed #e2e8f0; }
 .route-empty-hint i { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.5; }
 
@@ -268,15 +261,63 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .route-detail-shop-head h4 { font-size: 16px; color: #1e293b; }
 .route-detail-shop-head .qty-pill { background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 12px; font-weight: 700; font-size: 13px; }
 .route-detail-items { margin-top: 8px; }
-.route-detail-items p { font-size: 14px; color: #475569; padding: 3px 0; }
 
-/* ROUTE PRODUCT BREAKDOWN */
 .route-breakdown { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #c7d2fe; }
 .route-breakdown-line { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; flex-wrap: wrap; gap: 6px; }
-.route-breakdown-line .rb-name { color: #475569; font-weight: 600; }
-.route-breakdown-line .rb-qty { color: #16a34a; font-weight: 700; background: #dcfce7; padding: 2px 10px; border-radius: 10px; font-size: 12px; }
 .route-total-summary { flex-direction: column; align-items: stretch !important; }
 .route-total-breakdown { background: rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 12px 14px; margin-top: 8px; }
 .route-total-breakdown .route-breakdown-line { padding: 5px 0; }
-.route-total-breakdown .route-breakdown-line .rb-name { color: #ffffff; font-weight: 600; }
-.route-total-breakdown .route-breakdown-line .rb-qty { color: #ffffff; background: rgba(255, 255, 255, 0.25); font-weight: 700; }
+
+/* ============================================================
+   PRODUCT & QUANTITY COLOR SCHEME (PURI WEBSITE)
+   Product: Blue-Purple pill | Quantity: Green pill
+   ============================================================ */
+
+/* Dashboard — Aaj Ka Load */
+.shop-order-line { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; flex-wrap: wrap; gap: 8px; }
+.shop-order-line:last-child { border-bottom: none; }
+.shop-order-line .product-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3; font-weight: 700; font-size: 14px; padding: 6px 14px; border-radius: 20px; border: 1px solid #c7d2fe; }
+.shop-order-line .qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; font-weight: 800; font-size: 14px; padding: 6px 14px; border-radius: 20px; border: 1px solid #86efac; }
+
+/* Product line (route modal, orders, delivery, pending shop modal) */
+.product-line-info .p-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3 !important; font-weight: 700; font-size: 14px; padding: 5px 12px; border-radius: 16px; border: 1px solid #c7d2fe; margin-bottom: 4px; }
+.product-line-info .p-qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d !important; font-weight: 800; font-size: 14px; padding: 5px 12px; border-radius: 16px; border: 1px solid #86efac; margin-left: 6px; margin-bottom: 4px; }
+
+/* Route breakdown */
+.route-breakdown-line .rb-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3 !important; font-weight: 700; font-size: 13px; padding: 4px 12px; border-radius: 14px; border: 1px solid #c7d2fe; }
+.route-breakdown-line .rb-qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5) !important; color: #15803d !important; font-weight: 800; font-size: 13px; padding: 4px 12px; border-radius: 14px; border: 1px solid #86efac; }
+
+/* Route modal total (green bg) */
+.route-total-breakdown .route-breakdown-line .rb-name { background: rgba(255, 255, 255, 0.2); color: #ffffff !important; border-color: rgba(255, 255, 255, 0.35); }
+.route-total-breakdown .route-breakdown-line .rb-qty { background: rgba(255, 255, 255, 0.25) !important; color: #ffffff !important; border-color: rgba(255, 255, 255, 0.4); }
+
+/* Route detail shop items */
+.route-detail-items p { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #e2e8f0; flex-wrap: wrap; gap: 8px; font-size: 14px; color: #475569; }
+.route-detail-items p:last-child { border-bottom: none; }
+.route-detail-items p b { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3 !important; font-weight: 700; font-size: 13px; padding: 4px 12px; border-radius: 14px; border: 1px solid #c7d2fe; }
+
+/* Added Products list */
+.added-product-row .ap-name { background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3; padding: 6px 14px; border-radius: 20px; border: 1px solid #c7d2fe; font-weight: 700; font-size: 14px; }
+.added-product-row .ap-qty { background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; padding: 6px 14px; border-radius: 20px; border: 1px solid #86efac; font-weight: 800; font-size: 14px; }
+
+/* History items */
+.item-info p b { color: #15803d; background: #dcfce7; padding: 2px 10px; border-radius: 10px; font-weight: 800; }
+
+/* Deliver modal */
+.deliver-row-head { display: inline-block; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; padding: 6px 14px; border-radius: 20px; border: 1px solid #86efac; font-weight: 800; font-size: 14px; margin-bottom: 8px; }
+
+/* Product Chunein grid */
+.product-picker-card .pp-name { background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3; padding: 5px 14px; border-radius: 14px; border: 1px solid #c7d2fe; display: inline-block; font-weight: 700; font-size: 13px; }
+.product-picker-card.added .pp-name { background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; border-color: #86efac; }
+
+/* Route shop picker order summary */
+.route-shop-item .shop-order-summary { display: block; font-size: 12px; color: #16a34a; font-weight: 600; margin-top: 4px; background: #f0fdf4; padding: 4px 8px; border-radius: 6px; line-height: 1.4; }
+.route-shop-item.selected .shop-order-summary { background: rgba(22, 163, 74, 0.15); color: #15803d; }
+
+/* Mobile padding */
+@media (max-width: 500px) {
+  .product-line-info .p-name,
+  .product-line-info .p-qty { font-size: 12px; padding: 4px 10px; }
+  .shop-order-line .product-name,
+  .shop-order-line .qty { font-size: 12px; padding: 5px 11px; }
+}
