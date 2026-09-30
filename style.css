@@ -218,11 +218,18 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .route-stat.green { background: #dcfce7; color: #166534; }
 .route-actions { display: flex; gap: 6px; margin-top: 10px; }
 
-.route-shop-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px; }
+.route-shop-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 15px; }
 .route-shop-item { display: flex; align-items: center; gap: 10px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: 0.2s; font-weight: 600; font-size: 14px; color: #334155; }
 .route-shop-item:hover { border-color: #6366f1; background: #eef2ff; }
 .route-shop-item.selected { border-color: #6366f1; background: #e0e7ff; color: #3730a3; }
 .route-shop-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: #6366f1; cursor: pointer; flex-shrink: 0; }
+.route-shop-item .shop-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.route-shop-item .shop-name-line { display: flex; align-items: center; gap: 8px; }
+.route-shop-item .shop-name-line i { color: #6366f1; }
+.route-shop-item .other-route-badge { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; margin-left: auto; }
+
+.route-empty-hint { text-align: center; padding: 30px 20px; color: #94a3b8; background: #f8fafc; border-radius: 12px; font-size: 14px; border: 2px dashed #e2e8f0; }
+.route-empty-hint i { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.5; }
 
 .route-detail-shop { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #6366f1; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
 .route-detail-shop-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
