@@ -116,6 +116,87 @@ function saveSettingsFirebase() {
   saveToFirebase('settings', 'business', { bizName: settings.bizName });
 }
 
+// ================== WHATSAPP HELPERS ==================
+function formatWaNumber(mobile) {
+  if (!mobile) return '';
+  var digits = String(mobile).replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.indexOf('0') === 0) return '92' + digits.substring(1);
+  if (digits.indexOf('92') === 0) return digits;
+  if (digits.length === 10 && digits.indexOf('3') === 0) return '92' + digits;
+  return digits;
+}
+
+function formatOrderItemsText(items) {
+  var lines = [];
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var qty = qtyText(it.maund, it.kg);
+    lines.push('• ' + it.product + ' — ' + qty);
+  }
+  return lines.join('\n');
+}
+
+function sendOrderWhatsApp(order, shop) {
+  if (!shop || !shop.mobile) return false;
+  var number = formatWaNumber(shop.mobile);
+  if (!number) return false;
+
+  var bizName = settings.bizName || 'Atta Chakki';
+  var itemsText = formatOrderItemsText(order.items);
+
+  var msg = 'Assalam-o-Alaikum ' + shop.name + '!\n\n' +
+    'Aap ka order book ho chuka hai:\n\n' +
+    itemsText + '\n\n' +
+    'Inshallah jald hi deliver ho jayega.\n' +
+    'Shukriya!\n' +
+    '- ' + bizName;
+
+  var url = 'https://wa.me/' + number + '?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+  return true;
+}
+
+function sendDeliveredWhatsApp(order, shop) {
+  if (!shop || !shop.mobile) return false;
+  var number = formatWaNumber(shop.mobile);
+  if (!number) return false;
+
+  var bizName = settings.bizName || 'Atta Chakki';
+
+  var lines = [];
+  for (var i = 0; i < order.items.length; i++) {
+    var it = order.items[i];
+    var dm = parseInt(it.deliveredMaund) || 0;
+    var dk = parseInt(it.deliveredKg) || 0;
+    if (dm > 0 || dk > 0) {
+      lines.push('• ' + it.product + ' — ' + qtyText(dm, dk));
+    } else {
+      var m = parseInt(it.maund) || 0;
+      var k = parseInt(it.kg) || 0;
+      lines.push('• ' + it.product + ' — ' + qtyText(m, k));
+    }
+  }
+  var itemsText = lines.join('\n');
+
+  var msg = 'Assalam-o-Alaikum ' + shop.name + '!\n\n' +
+    'Aap ka order deliver ho chuka hai:\n\n' +
+    itemsText + '\n\n' +
+    'Shukriya!\n' +
+    '- ' + bizName;
+
+  var url = 'https://wa.me/' + number + '?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+  return true;
+}
+
+function getShopById(shopId) {
+  for (var i = 0; i < shopkeepers.length; i++) {
+    if (shopkeepers[i].id == shopId) return shopkeepers[i];
+  }
+  return null;
+}
+
 // ================== ROUTE AUTO-CLEANUP ==================
 function cleanupRouteAfterDelivery() {
   if (!firebaseReady) return;
@@ -1087,12 +1168,26 @@ function confirmCombinedDelivery() {
     saveToFirebase('orders', order.id, order);
   }
 
+  // WhatsApp ke liye pehle shop/order nikaalo
+  var waShop = null;
+  var waOrder = null;
+  if (currentCombinedOrderIds.length > 0) {
+    for (var i = 0; i < orders.length; i++) {
+      if (orders[i].id == currentCombinedOrderIds[0]) { waOrder = orders[i]; break; }
+    }
+    if (waOrder) waShop = getShopById(waOrder.shopId);
+  }
+
   closeDeliverModal();
   cleanupRouteAfterDelivery();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
-  alert('Deliver ho gaya!');
+
+  // WhatsApp automatic
+  if (waShop && waShop.mobile && waOrder) {
+    sendDeliveredWhatsApp(waOrder, waShop);
+  }
 }
 
 function markAllCombinedDelivered() {
@@ -1117,12 +1212,24 @@ function markAllCombinedDelivered() {
     saveToFirebase('orders', order.id, order);
   }
 
+  var waShop = null;
+  var waOrder = null;
+  if (currentCombinedOrderIds.length > 0) {
+    for (var i = 0; i < orders.length; i++) {
+      if (orders[i].id == currentCombinedOrderIds[0]) { waOrder = orders[i]; break; }
+    }
+    if (waOrder) waShop = getShopById(waOrder.shopId);
+  }
+
   closeDeliverModal();
   cleanupRouteAfterDelivery();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
-  alert('Poora deliver ho gaya!');
+
+  if (waShop && waShop.mobile && waOrder) {
+    sendDeliveredWhatsApp(waOrder, waShop);
+  }
 }
 
 function closePendingShopModal() {
@@ -1604,7 +1711,6 @@ function renderDashboardRoutes() {
   list.innerHTML = html;
 }
 
-// ============ UPDATED: openRouteModal — product wise combine ============
 function openRouteModal(routeId) {
   var route = null;
   for (var i = 0; i < routes.length; i++) {
@@ -1634,7 +1740,6 @@ function openRouteModal(routeId) {
     }
     if (!shop) continue;
 
-    // Product wise combine karo (maund total, kg alag alag)
     var productMap = {};
     var productOrder = [];
     var shopTotalKg = 0;
@@ -1665,7 +1770,6 @@ function openRouteModal(routeId) {
 
     grandTotalKg += shopTotalKg;
 
-    // Item rows — ek row per product
     var itemsHtml = '';
     for (var p = 0; p < productOrder.length; p++) {
       var pName = productOrder[p];
@@ -1938,11 +2042,16 @@ function saveMultiOrder() {
     db.collection('orders').add(newOrder).then(function(ref) {
       newOrder.id = ref.id;
       orders.push(newOrder);
-      alert('Order save!');
       prepareOrderForm();
       renderDashboard();
       renderRouteShopPicker();
       showPage('dashboard');
+
+      // WhatsApp automatic
+      var shop = getShopById(shopId);
+      if (shop && shop.mobile) {
+        sendOrderWhatsApp(newOrder, shop);
+      }
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
 }
@@ -2116,7 +2225,12 @@ function confirmDelivery() {
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
-  alert('Deliver ho gaya!');
+
+  // WhatsApp automatic
+  var shop = getShopById(order.shopId);
+  if (shop && shop.mobile) {
+    sendDeliveredWhatsApp(order, shop);
+  }
 }
 function markAllDelivered() {
   if (!can('deliver')) return;
@@ -2138,7 +2252,12 @@ function markAllDelivered() {
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
-  alert('Poora deliver ho gaya!');
+
+  // WhatsApp automatic
+  var shop = getShopById(order.shopId);
+  if (shop && shop.mobile) {
+    sendDeliveredWhatsApp(order, shop);
+  }
 }
 function confirmDeliverySmart() {
   if (currentCombinedProduct) confirmCombinedDelivery();
