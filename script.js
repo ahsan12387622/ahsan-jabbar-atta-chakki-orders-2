@@ -55,6 +55,10 @@ var selectedEditIndex = -1;
 var currentOrderItems = [];
 var selectedRouteShops = [];
 
+// Pending shop modal ke liye
+var currentPendingShopId = null;
+var currentPendingProducts = [];
+
 // ================== FIREBASE SYNC ==================
 function loadAllData(callback) {
   if (!firebaseReady) { if (callback) callback(); return; }
@@ -176,6 +180,37 @@ function sendDeliveredWhatsApp(order, shop) {
       var k = parseInt(it.kg) || 0;
       lines.push('• ' + it.product + ' — ' + qtyText(m, k));
     }
+  }
+  var itemsText = lines.join('\n');
+
+  var msg = 'Assalam-o-Alaikum ' + shop.name + '!\n\n' +
+    'Aap ka order deliver ho chuka hai:\n\n' +
+    itemsText + '\n\n' +
+    'Shukriya!\n' +
+    '- ' + bizName;
+
+  var url = 'https://wa.me/' + number + '?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+  return true;
+}
+
+// Multiple items wala WhatsApp msg (checkbox wale modal se)
+function sendMultiDeliveredWhatsApp(items, shop) {
+  if (!shop || !shop.mobile) return false;
+  var number = formatWaNumber(shop.mobile);
+  if (!number) return false;
+
+  var bizName = settings.bizName || 'Atta Chakki';
+
+  var lines = [];
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var qtyParts = [];
+    if (it.maund > 0) qtyParts.push(it.maund + ' maund');
+    for (var k = 0; k < it.kgList.length; k++) qtyParts.push(it.kgList[k] + ' kg');
+    if (qtyParts.length === 0 && it.kg > 0) qtyParts.push(it.kg + ' kg');
+    var qtyStr = qtyParts.join(', ') || '0 kg';
+    lines.push('• ' + it.product + ' — ' + qtyStr);
   }
   var itemsText = lines.join('\n');
 
@@ -961,6 +996,7 @@ function renderPendingShopkeeperList() {
   list.innerHTML = html;
 }
 
+// ============ PENDING SHOP MODAL — CHECKBOX + MULTI DELIVER ============
 function openPendingShopModal(shopId) {
   var today = todayStr();
   var shopName = 'Unknown', shopMobile = '';
@@ -969,6 +1005,7 @@ function openPendingShopModal(shopId) {
   }
   document.getElementById('pendingShopTitle').textContent = shopName + ' - Aaj Ke Orders';
   document.getElementById('pendingShopModal').setAttribute('data-shop-id', shopId);
+  currentPendingShopId = shopId;
 
   var sOrders = [];
   for (var i = 0; i < orders.length; i++) {
@@ -980,6 +1017,7 @@ function openPendingShopModal(shopId) {
   if (sOrders.length === 0) {
     body.innerHTML = '<div class="empty">Koi pending order nahi.</div>';
     document.getElementById('pendingShopModal').classList.add('active');
+    currentPendingProducts = [];
     return;
   }
 
@@ -1009,41 +1047,144 @@ function openPendingShopModal(shopId) {
   }
 
   var grandTotalKg = 0;
+  currentPendingProducts = [];
   for (var p = 0; p < productOrder.length; p++) {
     var pm = productMap[productOrder[p]];
     grandTotalKg += (pm.maund * 40) + pm.kg;
+    currentPendingProducts.push({
+      product: productOrder[p],
+      maund: pm.maund,
+      kg: pm.kg,
+      kgList: pm.kgList.slice(),
+      orderIds: pm.orderIds.slice()
+    });
   }
 
   var linesHtml = '';
-  for (var p = 0; p < productOrder.length; p++) {
-    var pName = productOrder[p];
-    var pm = productMap[pName];
+  for (var p = 0; p < currentPendingProducts.length; p++) {
+    var pd = currentPendingProducts[p];
     var qtyParts = [];
-    if (pm.maund > 0) qtyParts.push(pm.maund + ' maund');
-    for (var q = 0; q < pm.kgList.length; q++) qtyParts.push(pm.kgList[q] + ' kg');
+    if (pd.maund > 0) qtyParts.push(pd.maund + ' maund');
+    for (var q = 0; q < pd.kgList.length; q++) qtyParts.push(pd.kgList[q] + ' kg');
     var qtyStr = qtyParts.join(', ') || '0 kg';
 
-    var action = '';
-    if (can('deliver')) {
-      var orderIdsStr = JSON.stringify(pm.orderIds);
-      var safeProductName = pName.replace(/'/g, "\\'").replace(/"/g, '\\"');
-      action = '<button class="btn small success" onclick=\'openCombinedDeliverModal("' + safeProductName + '", ' + orderIdsStr + ')\'><i class="fa fa-check"></i> Delivered</button>';
-    }
-
-    linesHtml += '<div class="product-line"><div class="product-line-info">' +
-      '<span class="p-name">📦 ' + pName + '</span>' +
-      '<span class="p-qty">' + qtyStr + '</span>' +
-      '</div>' + action + '</div>';
+    linesHtml += '<div class="product-line selectable-line">' +
+      '<label class="deliver-checkbox">' +
+        '<input type="checkbox" class="pending-item-check" data-idx="' + p + '" onchange="updateDeliverBtn()" />' +
+      '</label>' +
+      '<div class="product-line-info">' +
+        '<span class="p-name">📦 ' + pd.product + '</span>' +
+        '<span class="p-qty">' + qtyStr + '</span>' +
+      '</div>' +
+    '</div>';
   }
 
+  var deliverBtnHtml = can('deliver')
+    ? '<button class="btn primary small deliver-selected-btn" onclick="deliverSelectedItems()" id="deliverSelectedBtn" disabled>' +
+        '<i class="fa fa-check"></i> Deliver (<span id="deliverCount">0</span>)' +
+      '</button>'
+    : '';
+
+  var selectAllHtml = '<button class="btn small" onclick="toggleSelectAllPending()" id="selectAllPendingBtn" style="width:100%;margin-top:10px;">' +
+    '<i class="fa fa-check-square"></i> Select All</button>';
+
   var html = '<div class="shop-group"><div class="shop-group-head">' +
-    '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
+    '<div style="flex:1;"><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
     '<p><i class="fa fa-phone"></i> ' + shopMobile + ' • ' + formatDate(today) + '</p></div>' +
-    '<span class="shop-group-total">' + totalKgText(grandTotalKg) + '</span></div>' +
-    linesHtml + '</div>';
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+      '<span class="shop-group-total">' + totalKgText(grandTotalKg) + '</span>' +
+      deliverBtnHtml +
+    '</div>' +
+    '</div>' +
+    linesHtml +
+    selectAllHtml +
+    '</div>';
 
   body.innerHTML = html;
   document.getElementById('pendingShopModal').classList.add('active');
+}
+
+function updateDeliverBtn() {
+  var checks = document.querySelectorAll('.pending-item-check');
+  var count = 0;
+  for (var i = 0; i < checks.length; i++) {
+    if (checks[i].checked) count++;
+  }
+  var btn = document.getElementById('deliverSelectedBtn');
+  var countSpan = document.getElementById('deliverCount');
+  if (countSpan) countSpan.textContent = count;
+  if (btn) btn.disabled = (count === 0);
+}
+
+function toggleSelectAllPending() {
+  var checks = document.querySelectorAll('.pending-item-check');
+  var allChecked = true;
+  for (var i = 0; i < checks.length; i++) {
+    if (!checks[i].checked) { allChecked = false; break; }
+  }
+  for (var i = 0; i < checks.length; i++) {
+    checks[i].checked = !allChecked;
+  }
+  var btn = document.getElementById('selectAllPendingBtn');
+  if (btn) {
+    if (allChecked) btn.innerHTML = '<i class="fa fa-check-square"></i> Select All';
+    else btn.innerHTML = '<i class="fa fa-square"></i> Deselect All';
+  }
+  updateDeliverBtn();
+}
+
+function deliverSelectedItems() {
+  if (!can('deliver')) { alert('Permission nahi hai'); return; }
+  var checks = document.querySelectorAll('.pending-item-check');
+  var selectedIdx = [];
+  for (var i = 0; i < checks.length; i++) {
+    if (checks[i].checked) selectedIdx.push(parseInt(checks[i].getAttribute('data-idx')));
+  }
+  if (selectedIdx.length === 0) { alert('Kam az kam ek product select karein!'); return; }
+
+  var shopId = currentPendingShopId;
+  var shop = getShopById(shopId);
+
+  var deliveredItemsForWa = [];
+
+  for (var s = 0; s < selectedIdx.length; s++) {
+    var pd = currentPendingProducts[selectedIdx[s]];
+    if (!pd) continue;
+
+    for (var i = 0; i < pd.orderIds.length; i++) {
+      var oid = pd.orderIds[i];
+      var order = null;
+      for (var j = 0; j < orders.length; j++) {
+        if (orders[j].id == oid) { order = orders[j]; break; }
+      }
+      if (!order) continue;
+
+      for (var k = 0; k < order.items.length; k++) {
+        var it = order.items[k];
+        if (it.product !== pd.product) continue;
+        it.deliveredMaund = parseInt(it.maund) || 0;
+        it.deliveredKg = parseInt(it.kg) || 0;
+      }
+
+      order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
+      saveToFirebase('orders', order.id, order);
+    }
+
+    deliveredItemsForWa.push({
+      product: pd.product,
+      maund: pd.maund,
+      kg: pd.kg,
+      kgList: pd.kgList.slice()
+    });
+  }
+
+  cleanupRouteAfterDelivery();
+  renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+  refreshPendingShopModal();
+
+  if (shop && shop.mobile && deliveredItemsForWa.length > 0) {
+    sendMultiDeliveredWhatsApp(deliveredItemsForWa, shop);
+  }
 }
 
 function openCombinedDeliverModal(productName, orderIds) {
@@ -1168,7 +1309,6 @@ function confirmCombinedDelivery() {
     saveToFirebase('orders', order.id, order);
   }
 
-  // WhatsApp ke liye pehle shop/order nikaalo
   var waShop = null;
   var waOrder = null;
   if (currentCombinedOrderIds.length > 0) {
@@ -1184,7 +1324,6 @@ function confirmCombinedDelivery() {
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
 
-  // WhatsApp automatic
   if (waShop && waShop.mobile && waOrder) {
     sendDeliveredWhatsApp(waOrder, waShop);
   }
@@ -1235,6 +1374,8 @@ function markAllCombinedDelivered() {
 function closePendingShopModal() {
   document.getElementById('pendingShopModal').classList.remove('active');
   document.getElementById('pendingShopModal').removeAttribute('data-shop-id');
+  currentPendingShopId = null;
+  currentPendingProducts = [];
 }
 
 function refreshPendingShopModal() {
@@ -2047,7 +2188,6 @@ function saveMultiOrder() {
       renderRouteShopPicker();
       showPage('dashboard');
 
-      // WhatsApp automatic
       var shop = getShopById(shopId);
       if (shop && shop.mobile) {
         sendOrderWhatsApp(newOrder, shop);
@@ -2157,7 +2297,7 @@ function renderOrdersPage() {
   list.innerHTML = html;
 }
 
-// ================== DELIVER MODAL ==================
+// ================== DELIVER MODAL (purana) ==================
 function openDeliverModal(orderId, product) {
   if (!can('deliver')) { alert('Permission nahi hai'); return; }
   currentDeliverOrderId = orderId;
@@ -2226,7 +2366,6 @@ function confirmDelivery() {
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
 
-  // WhatsApp automatic
   var shop = getShopById(order.shopId);
   if (shop && shop.mobile) {
     sendDeliveredWhatsApp(order, shop);
@@ -2253,7 +2392,6 @@ function markAllDelivered() {
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
 
-  // WhatsApp automatic
   var shop = getShopById(order.shopId);
   if (shop && shop.mobile) {
     sendDeliveredWhatsApp(order, shop);
