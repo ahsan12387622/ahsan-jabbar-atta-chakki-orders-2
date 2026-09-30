@@ -603,30 +603,151 @@ function renderDashboard() {
   var list = document.getElementById('todayLoadList');
   if (todayPending.length === 0) {
     list.innerHTML = '<div class="empty"><i class="fa fa-check-circle"></i>Aaj koi pending order nahi.</div>';
+  } else {
+    var byProduct = {};
+    for (var i = 0; i < todayPending.length; i++) {
+      var o = todayPending[i];
+      for (var j = 0; j < o.items.length; j++) {
+        var it = o.items[j];
+        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        if (remM <= 0 && remK <= 0) continue;
+        var p = it.product;
+        if (!byProduct[p]) byProduct[p] = [];
+        byProduct[p].push({ maund: remM, kg: remK });
+      }
+    }
+    var rows = '';
+    var keys = Object.keys(byProduct);
+    for (var k = 0; k < keys.length; k++) {
+      rows += '<div class="shop-order-line">' +
+        '<span class="product-name">📦 ' + keys[k] + '</span>' +
+        '<span class="qty">' + productQtySummary(byProduct[keys[k]]) + '</span>' +
+      '</div>';
+    }
+    list.innerHTML = rows || '<div class="empty">Sab deliver ho gaya!</div>';
+  }
+
+  // === Today's Pending Shopkeeper Order list ===
+  renderPendingShopkeeperList();
+}
+
+// ================== TODAY'S PENDING SHOPKEEPER LIST ==================
+function renderPendingShopkeeperList() {
+  var today = todayStr();
+  var list = document.getElementById('pendingShopList');
+  var badge = document.getElementById('pendingShopBadge');
+  if (!list) return;
+
+  var grouped = {};
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.date !== today) continue;
+    if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+    if (!grouped[o.shopId]) grouped[o.shopId] = 0;
+    grouped[o.shopId]++;
+  }
+
+  var shopIds = Object.keys(grouped);
+  if (badge) badge.textContent = shopIds.length;
+
+  if (shopIds.length === 0) {
+    list.innerHTML = '<div class="empty"><i class="fa fa-check-circle"></i>Aaj koi pending shopkeeper order nahi.</div>';
     return;
   }
-  var byProduct = {};
-  for (var i = 0; i < todayPending.length; i++) {
-    var o = todayPending[i];
-    for (var j = 0; j < o.items.length; j++) {
-      var it = o.items[j];
-      var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
-      var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
-      if (remM <= 0 && remK <= 0) continue;
-      var p = it.product;
-      if (!byProduct[p]) byProduct[p] = [];
-      byProduct[p].push({ maund: remM, kg: remK });
+
+  var html = '';
+  for (var k = 0; k < shopIds.length; k++) {
+    var sid = shopIds[k];
+    var shopName = 'Unknown';
+    for (var i = 0; i < shopkeepers.length; i++) {
+      if (shopkeepers[i].id == sid) shopName = shopkeepers[i].name;
     }
-  }
-  var rows = '';
-  var keys = Object.keys(byProduct);
-  for (var k = 0; k < keys.length; k++) {
-    rows += '<div class="shop-order-line">' +
-      '<span class="product-name">📦 ' + keys[k] + '</span>' +
-      '<span class="qty">' + productQtySummary(byProduct[keys[k]]) + '</span>' +
+    var count = grouped[sid];
+    html += '<div class="pending-shop-name" onclick="openPendingShopModal(\'' + sid + '\')">' +
+      '<span class="name-text"><i class="fa fa-store shop-icon"></i> ' + shopName + '</span>' +
+      '<span><span class="order-count">' + count + '</span><i class="fa fa-chevron-right arrow-icon"></i></span>' +
     '</div>';
   }
-  list.innerHTML = rows || '<div class="empty">Sab deliver ho gaya!</div>';
+  list.innerHTML = html;
+}
+
+// ================== PENDING SHOP MODAL ==================
+function openPendingShopModal(shopId) {
+  var today = todayStr();
+  var shopName = 'Unknown', shopMobile = '';
+  for (var i = 0; i < shopkeepers.length; i++) {
+    if (shopkeepers[i].id == shopId) {
+      shopName = shopkeepers[i].name;
+      shopMobile = shopkeepers[i].mobile;
+    }
+  }
+  document.getElementById('pendingShopTitle').textContent = shopName + ' - Aaj Ke Orders';
+
+  var sOrders = [];
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.shopId == shopId && o.date === today &&
+        (o.status === 'Pending' || o.status === 'Partial')) {
+      sOrders.push(o);
+    }
+  }
+
+  var body = document.getElementById('pendingShopBody');
+  if (sOrders.length === 0) {
+    body.innerHTML = '<div class="empty">Koi pending order nahi.</div>';
+  } else {
+    var html = '';
+    for (var i = 0; i < sOrders.length; i++) {
+      var o = sOrders[i];
+      var linesHtml = '';
+      for (var j = 0; j < o.items.length; j++) {
+        var it = o.items[j];
+        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        if (remM <= 0 && remK <= 0) continue;
+
+        var deliveredText = '';
+        if (it.deliveredMaund > 0 || it.deliveredKg > 0) {
+          deliveredText = '<div class="p-delivered">✓ ' + qtyText(it.deliveredMaund, it.deliveredKg) + ' deliver ho chuka</div>';
+        }
+        var action = can('deliver')
+          ? '<button class="btn small success" onclick="openDeliverModal(\'' + o.id + '\', \'' + it.product.replace(/'/g, "\\'") + '\')"><i class="fa fa-check"></i> Delivered</button>'
+          : '';
+        linesHtml += '<div class="product-line">' +
+          '<div class="product-line-info">' +
+            '<span class="p-name">📦 ' + it.product + '</span>' +
+            '<span class="p-qty">' + qtyText(remM, remK) + '</span>' +
+            deliveredText +
+          '</div>' + action +
+        '</div>';
+      }
+      if (linesHtml === '') continue;
+
+      var totalKg = 0;
+      for (var j = 0; j < o.items.length; j++) {
+        var it = o.items[j];
+        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        totalKg += (remM * 40) + remK;
+      }
+
+      html += '<div class="shop-group">' +
+        '<div class="shop-group-head">' +
+          '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
+            '<p><i class="fa fa-phone"></i> ' + shopMobile + ' • ' + formatDate(o.date) + '</p></div>' +
+          '<span class="shop-group-total">' + totalKgText(totalKg) + '</span>' +
+        '</div>' + linesHtml +
+      '</div>';
+    }
+    body.innerHTML = html || '<div class="empty">Koi pending order nahi.</div>';
+  }
+
+  document.getElementById('pendingShopModal').classList.add('active');
+}
+
+function closePendingShopModal() {
+  document.getElementById('pendingShopModal').classList.remove('active');
 }
 
 // ================== SHOPKEEPERS ==================
@@ -1021,6 +1142,11 @@ function confirmDelivery() {
   saveToFirebase('orders', order.id, order);
   closeDeliverModal();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+  // Refresh pending shop modal if open
+  var pm = document.getElementById('pendingShopModal');
+  if (pm && pm.classList.contains('active')) {
+    closePendingShopModal();
+  }
   alert('Deliver ho gaya!');
 }
 function markAllDelivered() {
@@ -1040,6 +1166,10 @@ function markAllDelivered() {
   saveToFirebase('orders', order.id, order);
   closeDeliverModal();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+  var pm = document.getElementById('pendingShopModal');
+  if (pm && pm.classList.contains('active')) {
+    closePendingShopModal();
+  }
   alert('Poora deliver ho gaya!');
 }
 
