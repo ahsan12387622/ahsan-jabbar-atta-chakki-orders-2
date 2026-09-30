@@ -81,9 +81,14 @@
       <div class="box-head"><h2><i class="fa fa-truck"></i> Aaj Ka Load</h2><span class="pill" id="todayLoadBadge">0</span></div>
       <div id="todayLoadList"></div>
     </div>
+    <!-- ===== ROUTES ON DASHBOARD ===== -->
+    <div class="box">
+      <div class="box-head"><h2><i class="fa fa-route"></i> Aaj Ke Delivery Routes</h2><span class="pill" id="routesBadge">0</span></div>
+      <div id="dashboardRoutesList" class="routes-list"></div>
+    </div>
   </section>
 
-  <!-- ============ NEW ORDER (MULTI-STEP) ============ -->
+  <!-- NEW ORDER (3-STEP) -->
   <section id="neworder" class="page">
     <div class="page-header">
       <button class="btn back-btn" onclick="newOrderBack()"><i class="fa fa-arrow-left"></i> Wapas</button>
@@ -91,12 +96,10 @@
       <p class="page-sub" id="newOrderSub">Pehle shopkeeper chunein</p>
     </div>
 
-    <!-- STEP 1: Shopkeeper Grid -->
     <div id="shopPickerStep">
       <div class="shop-picker-grid" id="shopPickerGrid"></div>
     </div>
 
-    <!-- STEP 2: Product Picker + Selected Products -->
     <div id="productPickerStep" style="display:none;">
       <div class="selected-shop-bar">
         <div class="selected-shop-info">
@@ -128,7 +131,6 @@
       </div>
     </div>
 
-    <!-- STEP 3: Quantity Page -->
     <div id="quantityStep" style="display:none;">
       <div class="qty-product-head">
         <div class="qp-icon"><i class="fa fa-box"></i></div>
@@ -160,7 +162,6 @@
         </div>
       </div>
     </div>
-
   </section>
 
   <section id="orders" class="page">
@@ -179,6 +180,29 @@
     </div>
     <div class="load-summary" id="ordersSummary"></div>
     <div id="ordersList" class="list"></div>
+  </section>
+
+  <!-- ===== DELIVERY ROUTES PAGE ===== -->
+  <section id="routes" class="page">
+    <div class="page-header">
+      <h1><i class="fa fa-route"></i> Delivery Routes</h1>
+      <p class="page-sub">Shopkeepers ko route mein set karein</p>
+    </div>
+
+    <div class="box">
+      <h3 id="routeFormTitle">Naya Route Banayein</h3>
+      <input type="hidden" id="routeId" />
+      <div class="form-group">
+        <label>Route Ka Naam *</label>
+        <input type="text" id="routeName" placeholder="Jaise: Gulberg Route, Lahore Road" />
+      </div>
+      <h4 style="margin: 15px 0 10px; color:#16a34a;">Shopkeepers Chunein</h4>
+      <div id="routeShopPicker" class="route-shop-picker"></div>
+      <button class="btn primary big" onclick="saveRoute()"><i class="fa fa-save"></i> Route Save Karein</button>
+      <button class="btn big" onclick="resetRouteForm()">Cancel</button>
+    </div>
+
+    <div id="routesList" class="routes-list"></div>
   </section>
 
   <section id="shopkeepers" class="page">
@@ -229,6 +253,7 @@
         <label class="perm-item"><input type="checkbox" id="permShopkeepers" /><span><i class="fa fa-users"></i> Shopkeepers</span></label>
         <label class="perm-item"><input type="checkbox" id="permHistory" checked /><span><i class="fa fa-clock"></i> History</span></label>
         <label class="perm-item"><input type="checkbox" id="permSettings" /><span><i class="fa fa-gear"></i> Settings</span></label>
+        <label class="perm-item"><input type="checkbox" id="permRoutes" checked /><span><i class="fa fa-route"></i> Routes</span></label>
       </div>
       <button class="btn primary big" onclick="saveUser()"><i class="fa fa-save"></i> User Save Karein</button>
       <button class="btn big" onclick="resetUserForm()">Cancel</button>
@@ -294,6 +319,15 @@
     <div id="deliverBody"></div>
     <button class="btn primary big" onclick="confirmDelivery()"><i class="fa fa-check"></i> Delivered Confirm Karein</button>
     <button class="btn big" onclick="markAllDelivered()"><i class="fa fa-check-double"></i> Poora Deliver</button>
+  </div>
+</div>
+
+<!-- ROUTE DETAIL MODAL -->
+<div id="routeModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeRouteModal()">&times;</span>
+    <h2 id="routeModalTitle">Route Detail</h2>
+    <div id="routeModalBody"></div>
   </div>
 </div>
 
