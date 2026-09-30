@@ -53,7 +53,6 @@ var selectedShopIdForOrder = null;
 var selectedProductForOrder = null;
 var selectedEditIndex = -1;
 var currentOrderItems = [];
-// Route editor: { shopId: [product1, product2, ...] }
 var selectedRouteItems = {};
 
 var currentPendingShopId = null;
@@ -128,14 +127,12 @@ function loadAllData(callback) {
     snap.forEach(function(doc) {
       var d = doc.data();
       d.id = doc.id;
-      // Auto-migrate old format (shopIds) to new format (items)
       if (!d.items || !Array.isArray(d.items)) {
         d.items = [];
         if (d.shopIds && Array.isArray(d.shopIds)) {
+          var today = todayStr();
           for (var i = 0; i < d.shopIds.length; i++) {
             var sid = d.shopIds[i];
-            // Add every product this shopkeeper has today pending
-            var today = todayStr();
             var added = {};
             for (var j = 0; j < orders.length; j++) {
               var o = orders[j];
@@ -151,7 +148,6 @@ function loadAllData(callback) {
               }
             }
           }
-          // Save migrated data
           saveToFirebase('routes', d.id, d);
         }
         d.shopIds = undefined;
@@ -551,7 +547,6 @@ function getShopById(shopId) {
 function cleanupRouteAfterDelivery() {
   if (!firebaseReady) return;
   var routesChanged = false;
-  var today = todayStr();
 
   for (var r = routes.length - 1; r >= 0; r--) {
     var route = routes[r];
@@ -560,7 +555,6 @@ function cleanupRouteAfterDelivery() {
 
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
-      // Check: is shopId + product still pending?
       var stillPending = false;
       for (var j = 0; j < orders.length; j++) {
         var o = orders[j];
@@ -1644,7 +1638,7 @@ function renderShopkeepers() {
   }
 }
 
-// ================== DELIVERY ROUTES (product level) ==================
+// ================== DELIVERY ROUTES ==================
 function generateRouteName() {
   var nextNum = routes.length + 1;
   var names = {};
@@ -1675,7 +1669,6 @@ function shopHasTodayPendingOrder(shopId) {
   return false;
 }
 
-// Get shopkeeper's today-pending products list (with quantity)
 function getShopTodayProducts(shopId) {
   var today = todayStr();
   var productMap = {};
@@ -1726,7 +1719,6 @@ function saveRoute() {
   var name = document.getElementById('routeName').value.trim();
   if (!name) name = generateRouteName();
 
-  // Build items array from selectedRouteItems
   var items = [];
   var shopIds = Object.keys(selectedRouteItems);
   for (var i = 0; i < shopIds.length; i++) {
@@ -1738,7 +1730,6 @@ function saveRoute() {
   }
   if (items.length === 0) { alert('Kam az kam ek product chunein!'); return; }
 
-  // Remove these shop+product combos from OTHER routes
   var currentRouteId = id || null;
   for (var r = 0; r < routes.length; r++) {
     var route = routes[r];
@@ -1850,7 +1841,6 @@ function renderRouteShopPicker() {
   if (!box) return;
   var currentRouteId = document.getElementById('routeId').value || null;
 
-  // Only shops with pending orders today
   var visible = [];
   for (var i = 0; i < shopkeepers.length; i++) {
     var s = shopkeepers[i];
@@ -1869,7 +1859,6 @@ function renderRouteShopPicker() {
     var selectedProducts = selectedRouteItems[s.id] || [];
     var shopSelected = selectedProducts.length > 0;
 
-    // Find other route
     var otherRoute = null;
     for (var r = 0; r < routes.length; r++) {
       if (routes[r].id === currentRouteId) continue;
@@ -1912,10 +1901,8 @@ function renderRouteShopPicker() {
   box.innerHTML = html;
 }
 
-// Toggle entire shop — check/uncheck all products
 function toggleRouteShop(shopId, checked) {
   if (checked) {
-    // Select all products of this shop
     var shopProducts = getShopTodayProducts(shopId);
     selectedRouteItems[shopId] = [];
     for (var i = 0; i < shopProducts.length; i++) {
@@ -1927,7 +1914,6 @@ function toggleRouteShop(shopId, checked) {
   renderRouteShopPicker();
 }
 
-// Toggle single product
 function toggleRouteProduct(shopId, product, checked) {
   if (!selectedRouteItems[shopId]) selectedRouteItems[shopId] = [];
   var arr = selectedRouteItems[shopId];
@@ -1937,7 +1923,6 @@ function toggleRouteProduct(shopId, product, checked) {
   } else {
     if (idx !== -1) arr.splice(idx, 1);
   }
-  // If all products unselected, unselect shop
   if (arr.length === 0) delete selectedRouteItems[shopId];
   renderRouteShopPicker();
 }
@@ -1987,7 +1972,6 @@ function getRouteStats(route) {
     itemCount++;
     uniqueShops[it.shopId] = true;
 
-    // Sum up pending qty for this shopId + product
     var shopProdKg = 0;
     var shopProdMaund = 0;
     var kgList = [];
@@ -2010,7 +1994,6 @@ function getRouteStats(route) {
     totalKg += shopProdKg;
     totalMaund += shopProdMaund;
 
-    // Add to product breakdown (combine same product across shops)
     if (!productMap[it.product]) {
       productMap[it.product] = { maund: 0, kgList: [] };
       productOrder.push(it.product);
@@ -2026,7 +2009,6 @@ function getRouteStats(route) {
     breakdown.push({ product: name, maund: data.maund, kgList: data.kgList });
   }
 
-  // Pending shops count
   var pendingShopCount = 0;
   var shopIds = Object.keys(uniqueShops);
   for (var i = 0; i < shopIds.length; i++) {
@@ -2121,7 +2103,6 @@ function openRouteModal(routeId) {
     return;
   }
 
-  // Group by shopId
   var shopGroup = {};
   var shopOrder = [];
   for (var i = 0; i < items.length; i++) {
@@ -2146,7 +2127,6 @@ function openRouteModal(routeId) {
 
     var prods = shopGroup[sid];
 
-    // Build product-wise breakdown for this shop
     var shopTotalKg = 0;
     var productMap = {};
     var productOrder2 = [];
@@ -2191,12 +2171,17 @@ function openRouteModal(routeId) {
       '</div>';
     }
 
+    var deliverBtn = can('deliver')
+      ? '<button class="btn small success route-shop-deliver-btn" onclick="deliverRouteShop(\'' + route.id + '\', \'' + sid + '\')"><i class="fa fa-check"></i> Delivered</button>'
+      : '';
+
     html += '<div class="route-detail-shop">' +
       '<div class="route-detail-shop-head">' +
-        '<h4><i class="fa fa-store"></i> ' + shop.name + '</h4>' +
+        '<div style="flex:1;"><h4><i class="fa fa-store"></i> ' + shop.name + '</h4>' +
+        '<p style="font-size:13px;color:#64748b;margin-top:3px;"><i class="fa fa-phone"></i> ' + shop.mobile + '</p></div>' +
         '<span class="qty-pill">' + totalKgText(shopTotalKg) + '</span>' +
+        deliverBtn +
       '</div>' +
-      '<p style="font-size:13px;color:#64748b;margin-bottom:8px;"><i class="fa fa-phone"></i> ' + shop.mobile + '</p>' +
       '<div class="route-detail-items">' + itemsHtml + '</div>' +
     '</div>';
   }
@@ -2226,6 +2211,91 @@ function openRouteModal(routeId) {
 }
 function closeRouteModal() {
   document.getElementById('routeModal').classList.remove('active');
+}
+
+// Route Detail Modal se ek shopkeeper ke saare route-products deliver karo
+function deliverRouteShop(routeId, shopId) {
+  if (!can('deliver')) { alert('Permission nahi hai'); return; }
+
+  var route = null;
+  for (var i = 0; i < routes.length; i++) {
+    if (routes[i].id == routeId) { route = routes[i]; break; }
+  }
+  if (!route) return;
+
+  var shop = getShopById(shopId);
+  if (!shop) return;
+
+  var routeItems = route.items || [];
+  var shopProductsInRoute = [];
+  for (var i = 0; i < routeItems.length; i++) {
+    if (routeItems[i].shopId == shopId) shopProductsInRoute.push(routeItems[i].product);
+  }
+  if (shopProductsInRoute.length === 0) {
+    alert('Is shopkeeper ka koi product is route mein nahi hai.');
+    return;
+  }
+
+  var confirmText = shop.name + ' ke ye products deliver karein?\n\n';
+  var deliveredItemsForWa = [];
+
+  for (var p = 0; p < shopProductsInRoute.length; p++) {
+    var pName = shopProductsInRoute[p];
+    var mTot = 0;
+    var kgList = [];
+    for (var j = 0; j < orders.length; j++) {
+      var o = orders[j];
+      if (o.shopId != shopId) continue;
+      if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+      for (var k = 0; k < o.items.length; k++) {
+        var oi = o.items[k];
+        if (oi.product !== pName) continue;
+        var remM = (parseInt(oi.maund) || 0) - (parseInt(oi.deliveredMaund) || 0);
+        var remK = (parseInt(oi.kg) || 0) - (parseInt(oi.deliveredKg) || 0);
+        if (remM <= 0 && remK <= 0) continue;
+        mTot += remM;
+        if (remK > 0) kgList.push(remK);
+      }
+    }
+    var qtyParts = [];
+    if (mTot > 0) qtyParts.push(mTot + ' maund');
+    for (var q = 0; q < kgList.length; q++) qtyParts.push(kgList[q] + ' kg');
+    var qtyStr = qtyParts.join(', ') || '0 kg';
+    confirmText += '• ' + pName + ' — ' + qtyStr + '\n';
+    deliveredItemsForWa.push({ product: pName, maund: mTot, kg: 0, kgList: kgList.slice() });
+  }
+
+  confirmText += '\nConfirm?';
+
+  if (!confirm(confirmText)) return;
+
+  for (var p = 0; p < shopProductsInRoute.length; p++) {
+    var pName = shopProductsInRoute[p];
+    for (var j = 0; j < orders.length; j++) {
+      var o = orders[j];
+      if (o.shopId != shopId) continue;
+      if (o.status !== 'Pending' && o.status !== 'Partial') continue;
+      for (var k = 0; k < o.items.length; k++) {
+        var oi = o.items[k];
+        if (oi.product !== pName) continue;
+        oi.deliveredMaund = parseInt(oi.maund) || 0;
+        oi.deliveredKg = parseInt(oi.kg) || 0;
+      }
+      o.status = checkOrderDelivered(o) ? 'Delivered' : 'Partial';
+      saveToFirebase('orders', o.id, o);
+    }
+  }
+
+  cleanupRouteAfterDelivery();
+  closeRouteModal();
+  renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+  renderRoutes(); renderDashboardRoutes();
+
+  if (shop && shop.mobile && deliveredItemsForWa.length > 0) {
+    sendMultiDeliveredWhatsApp(deliveredItemsForWa, shop);
+  }
+
+  alert(shop.name + ' ke saare route products deliver ho gaye!');
 }
 
 // ================== NEW ORDER (3-STEP) ==================
