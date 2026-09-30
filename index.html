@@ -83,16 +83,21 @@
     </div>
   </section>
 
+  <!-- ============ NEW ORDER (MULTI-STEP) ============ -->
   <section id="neworder" class="page">
     <div class="page-header">
-      <button class="btn back-btn" onclick="showPage('dashboard')"><i class="fa fa-arrow-left"></i> Wapas</button>
-      <h1>Naya Order</h1>
+      <button class="btn back-btn" onclick="newOrderBack()"><i class="fa fa-arrow-left"></i> Wapas</button>
+      <h1 id="newOrderHeading">Naya Order</h1>
       <p class="page-sub" id="newOrderSub">Pehle shopkeeper chunein</p>
     </div>
+
+    <!-- STEP 1: Shopkeeper Grid -->
     <div id="shopPickerStep">
       <div class="shop-picker-grid" id="shopPickerGrid"></div>
     </div>
-    <div id="orderFormStep" style="display:none;">
+
+    <!-- STEP 2: Product Picker + Selected Products -->
+    <div id="productPickerStep" style="display:none;">
       <div class="selected-shop-bar">
         <div class="selected-shop-info">
           <i class="fa fa-store"></i>
@@ -100,19 +105,62 @@
         </div>
         <button class="btn small" onclick="changeShopkeeper()"><i class="fa fa-exchange-alt"></i> Change</button>
       </div>
-      <div class="box">
-        <div class="form-row">
-          <div class="form-group"><label><i class="fa fa-calendar"></i> Date *</label><input type="date" id="orderDate" /></div>
-          <div class="form-group"><label><i class="fa fa-sticky-note"></i> Notes</label><input type="text" id="orderNotes" placeholder="Optional" /></div>
+
+      <div class="box" id="addedProductsBox" style="display:none;">
+        <div class="box-head">
+          <h2><i class="fa fa-check-circle"></i> Add Ho Chuke Products</h2>
+          <span class="pill" id="addedProductsCount">0</span>
         </div>
-        <hr class="divider">
-        <h3 class="section-title"><i class="fa fa-boxes-stacked"></i> Products</h3>
-        <div id="productRows"></div>
-        <button class="btn add-product-btn" onclick="addProductRow()"><i class="fa fa-plus"></i> Aur Product Add Karein</button>
-        <div class="order-summary" id="orderSummary"></div>
+        <div id="addedProductsList" class="added-products-list"></div>
+      </div>
+
+      <div class="box">
+        <h3 class="section-title"><i class="fa fa-boxes-stacked"></i> Product Chunein</h3>
+        <div class="product-picker-grid" id="productPickerGrid"></div>
+      </div>
+
+      <div class="box">
+        <div class="form-group">
+          <label><i class="fa fa-sticky-note"></i> Notes (Optional)</label>
+          <input type="text" id="orderNotes" placeholder="Jaise: jaldi chahiye" />
+        </div>
         <button class="btn primary big" onclick="saveMultiOrder()"><i class="fa fa-save"></i> Order Save Karein</button>
       </div>
     </div>
+
+    <!-- STEP 3: Quantity Page -->
+    <div id="quantityStep" style="display:none;">
+      <div class="qty-product-head">
+        <div class="qp-icon"><i class="fa fa-box"></i></div>
+        <div class="qp-name" id="qtyProductName">—</div>
+      </div>
+
+      <div class="box">
+        <div class="qty-big-row">
+          <div class="qty-big-field">
+            <label>MAUND</label>
+            <input type="number" id="qtyMaund" min="0" placeholder="0" oninput="updateQtyPreview()" />
+            <small>1 maund = 40 kg</small>
+          </div>
+          <div class="qty-big-field">
+            <label>KG</label>
+            <input type="number" id="qtyKg" min="0" max="39" placeholder="0" oninput="updateQtyPreview()" />
+            <small>0 se 39 kg</small>
+          </div>
+        </div>
+
+        <div class="qty-preview" id="qtyPreviewBox">
+          <span>Total:</span>
+          <strong id="qtyPreviewText">0 kg</strong>
+        </div>
+
+        <div class="qty-actions">
+          <button class="btn big" onclick="cancelQty()"><i class="fa fa-times"></i> Cancel</button>
+          <button class="btn primary big" onclick="confirmQtyAdd()"><i class="fa fa-plus"></i> Product Add Karein</button>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   <section id="orders" class="page">
