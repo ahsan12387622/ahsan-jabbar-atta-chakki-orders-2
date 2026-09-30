@@ -59,6 +59,33 @@ var selectedRouteShops = [];
 var currentPendingShopId = null;
 var currentPendingProducts = [];
 
+// Menu & Dashboard layout
+var menuLayout = null;
+var dashboardLayout = null;
+var menuEditMode = false;
+var dashboardEditMode = false;
+
+// Default layouts
+var DEFAULT_MENU = [
+  { key: 'dashboard', label: 'Dashboard', icon: 'fa-home', show: true },
+  { key: 'neworder', label: 'Naya Order', icon: 'fa-plus-circle', show: true },
+  { key: 'orders', label: 'Orders / Loading', icon: 'fa-truck', show: true },
+  { key: 'routes', label: 'Delivery Routes', icon: 'fa-route', show: true },
+  { key: 'shopkeepers', label: 'Shopkeepers', icon: 'fa-users', show: true },
+  { key: 'delivery', label: 'Delivery', icon: 'fa-check-circle', show: true },
+  { key: 'history', label: 'History', icon: 'fa-clock', show: true },
+  { key: 'users', label: 'Users', icon: 'fa-user-shield', show: true },
+  { key: 'settings', label: 'Settings', icon: 'fa-gear', show: true }
+];
+
+var DEFAULT_DASHBOARD = [
+  { key: 'bigButtons', label: 'Big Buttons (Naya Order, Route, Orders)', show: true, size: 100 },
+  { key: 'cards', label: '4 Cards (Shopkeepers, Orders, Pending, Delivered)', show: true, size: 100 },
+  { key: 'pendingShops', label: "Today's Pending Shopkeeper Order", show: true, size: 100 },
+  { key: 'load', label: 'Aaj Ka Load', show: true, size: 100 },
+  { key: 'routes', label: 'Aaj Ke Delivery Routes', show: true, size: 100 }
+];
+
 // ================== FIREBASE SYNC ==================
 function loadAllData(callback) {
   if (!firebaseReady) { if (callback) callback(); return; }
@@ -120,6 +147,250 @@ function saveSettingsFirebase() {
   saveToFirebase('settings', 'business', { bizName: settings.bizName });
 }
 
+// ================== LAYOUT SYSTEM ==================
+function loadLayouts() {
+  // Menu layout
+  if (currentUser && currentUser.menuLayout && Array.isArray(currentUser.menuLayout) && currentUser.menuLayout.length > 0) {
+    menuLayout = currentUser.menuLayout.slice();
+    // Add any new defaults missing
+    for (var i = 0; i < DEFAULT_MENU.length; i++) {
+      var exists = false;
+      for (var j = 0; j < menuLayout.length; j++) {
+        if (menuLayout[j].key === DEFAULT_MENU[i].key) { exists = true; break; }
+      }
+      if (!exists) menuLayout.push(JSON.parse(JSON.stringify(DEFAULT_MENU[i])));
+    }
+  } else {
+    menuLayout = JSON.parse(JSON.stringify(DEFAULT_MENU));
+  }
+
+  // Dashboard layout
+  if (currentUser && currentUser.dashboardLayout && Array.isArray(currentUser.dashboardLayout) && currentUser.dashboardLayout.length > 0) {
+    dashboardLayout = currentUser.dashboardLayout.slice();
+    for (var i = 0; i < DEFAULT_DASHBOARD.length; i++) {
+      var exists = false;
+      for (var j = 0; j < dashboardLayout.length; j++) {
+        if (dashboardLayout[j].key === DEFAULT_DASHBOARD[i].key) { exists = true; break; }
+      }
+      if (!exists) dashboardLayout.push(JSON.parse(JSON.stringify(DEFAULT_DASHBOARD[i])));
+    }
+  } else {
+    dashboardLayout = JSON.parse(JSON.stringify(DEFAULT_DASHBOARD));
+  }
+}
+
+function saveMenuLayout() {
+  if (!currentUser) return;
+  currentUser.menuLayout = menuLayout.slice();
+  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  if (firebaseReady && currentUser.id) {
+    db.collection('users').doc(String(currentUser.id)).update({ menuLayout: menuLayout }).catch(function(e) { console.log(e); });
+  }
+}
+
+function saveDashboardLayout() {
+  if (!currentUser) return;
+  currentUser.dashboardLayout = dashboardLayout.slice();
+  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  if (firebaseReady && currentUser.id) {
+    db.collection('users').doc(String(currentUser.id)).update({ dashboardLayout: dashboardLayout }).catch(function(e) { console.log(e); });
+  }
+}
+
+// ================== MENU EDIT ==================
+function toggleMenuEdit() {
+  menuEditMode = !menuEditMode;
+  var panel = document.getElementById('menuEditPanel');
+  var nav = document.getElementById('sidebarNav');
+  var btn = document.getElementById('editMenuBtn');
+  if (menuEditMode) {
+    panel.style.display = 'block';
+    nav.style.display = 'none';
+    btn.innerHTML = '<i class="fa fa-eye"></i> Preview Menu';
+    renderMenuEditList();
+  } else {
+    panel.style.display = 'none';
+    nav.style.display = 'flex';
+    btn.innerHTML = '<i class="fa fa-pen"></i> Edit Menu';
+    renderSidebarNav();
+  }
+}
+
+function renderMenuEditList() {
+  var list = document.getElementById('menuEditList');
+  if (!list) return;
+  var html = '';
+  for (var i = 0; i < menuLayout.length; i++) {
+    var item = menuLayout[i];
+    var canUp = i > 0;
+    var canDown = i < menuLayout.length - 1;
+    html += '<div class="menu-edit-item ' + (item.show ? '' : 'hidden-item') + '">' +
+      '<input type="checkbox" ' + (item.show ? 'checked' : '') + ' onchange="toggleMenuShow(' + i + ', this.checked)" />' +
+      '<span class="me-name"><i class="fa ' + item.icon + '"></i> ' + item.label + '</span>' +
+      '<span class="me-arrows">' +
+        '<button onclick="moveMenuItem(' + i + ', -1)" ' + (canUp ? '' : 'disabled') + '><i class="fa fa-arrow-up"></i></button>' +
+        '<button onclick="moveMenuItem(' + i + ', 1)" ' + (canDown ? '' : 'disabled') + '><i class="fa fa-arrow-down"></i></button>' +
+      '</span>' +
+    '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function toggleMenuShow(idx, checked) {
+  if (idx < 0 || idx >= menuLayout.length) return;
+  menuLayout[idx].show = checked;
+  saveMenuLayout();
+  renderMenuEditList();
+  renderHiddenMenuList();
+}
+
+function moveMenuItem(idx, dir) {
+  var newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= menuLayout.length) return;
+  var temp = menuLayout[idx];
+  menuLayout[idx] = menuLayout[newIdx];
+  menuLayout[newIdx] = temp;
+  saveMenuLayout();
+  renderMenuEditList();
+}
+
+function resetMenuLayout() {
+  if (!confirm('Menu ko default pe reset karein?')) return;
+  menuLayout = JSON.parse(JSON.stringify(DEFAULT_MENU));
+  saveMenuLayout();
+  renderMenuEditList();
+  renderHiddenMenuList();
+  renderSidebarNav();
+}
+
+// ================== DASHBOARD EDIT ==================
+function toggleDashboardEdit() {
+  dashboardEditMode = !dashboardEditMode;
+  var panel = document.getElementById('dashEditPanel');
+  var editBtn = document.getElementById('editDashBtn');
+  var doneBtn = document.getElementById('doneDashBtn');
+  var resetBtn = document.getElementById('resetDashBtn');
+  if (dashboardEditMode) {
+    panel.style.display = 'block';
+    editBtn.style.display = 'none';
+    doneBtn.style.display = 'inline-block';
+    resetBtn.style.display = 'inline-block';
+    renderDashEditList();
+    applyDashboardLayout();
+  } else {
+    panel.style.display = 'none';
+    editBtn.style.display = 'inline-block';
+    doneBtn.style.display = 'none';
+    resetBtn.style.display = 'none';
+    applyDashboardLayout();
+  }
+}
+
+function renderDashEditList() {
+  var list = document.getElementById('dashEditList');
+  if (!list) return;
+  var html = '';
+  for (var i = 0; i < dashboardLayout.length; i++) {
+    var item = dashboardLayout[i];
+    html += '<div class="dash-edit-row">' +
+      '<input type="checkbox" ' + (item.show ? 'checked' : '') + ' onchange="toggleDashShow(' + i + ', this.checked)" />' +
+      '<span class="de-name">' + item.label + '</span>' +
+      '<span class="de-slider-wrap">' +
+        '<input type="range" min="20" max="100" value="' + item.size + '" oninput="updateDashSize(' + i + ', this.value)" />' +
+        '<span class="de-value" id="deVal' + i + '">' + item.size + '%</span>' +
+      '</span>' +
+    '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function toggleDashShow(idx, checked) {
+  if (idx < 0 || idx >= dashboardLayout.length) return;
+  dashboardLayout[idx].show = checked;
+  saveDashboardLayout();
+  applyDashboardLayout();
+  renderDashEditList();
+}
+
+function updateDashSize(idx, val) {
+  if (idx < 0 || idx >= dashboardLayout.length) return;
+  dashboardLayout[idx].size = parseInt(val) || 100;
+  var lbl = document.getElementById('deVal' + idx);
+  if (lbl) lbl.textContent = dashboardLayout[idx].size + '%';
+  saveDashboardLayout();
+  applyDashboardLayout();
+}
+
+function resetDashboardLayout() {
+  if (!confirm('Dashboard ko default pe reset karein?')) return;
+  dashboardLayout = JSON.parse(JSON.stringify(DEFAULT_DASHBOARD));
+  saveDashboardLayout();
+  applyDashboardLayout();
+  renderDashEditList();
+}
+
+function applyDashboardLayout() {
+  if (!dashboardLayout) return;
+  var sectionIds = {
+    bigButtons: 'sec-bigButtons',
+    cards: 'sec-cards',
+    pendingShops: 'sec-pendingShops',
+    load: 'sec-load',
+    routes: 'sec-routes'
+  };
+  for (var i = 0; i < dashboardLayout.length; i++) {
+    var item = dashboardLayout[i];
+    var el = document.getElementById(sectionIds[item.key]);
+    if (!el) continue;
+    if (item.show) {
+      el.classList.remove('dash-hidden');
+      el.style.display = '';
+    } else {
+      el.classList.add('dash-hidden');
+      el.style.display = 'none';
+    }
+    // Size
+    var size = parseInt(item.size) || 100;
+    if (size >= 100) {
+      el.style.width = '';
+      el.style.maxWidth = '';
+      el.style.marginLeft = '';
+      el.style.marginRight = '';
+    } else {
+      el.style.width = size + '%';
+      el.style.maxWidth = size + '%';
+      el.style.marginLeft = 'auto';
+      el.style.marginRight = 'auto';
+    }
+  }
+}
+
+// ================== HIDDEN MENU LIST (Settings) ==================
+function renderHiddenMenuList() {
+  var box = document.getElementById('hiddenMenuBox');
+  var list = document.getElementById('hiddenMenuList');
+  if (!box || !list) return;
+  if (!menuLayout) { box.style.display = 'none'; return; }
+  var hidden = [];
+  for (var i = 0; i < menuLayout.length; i++) {
+    if (!menuLayout[i].show) hidden.push(menuLayout[i]);
+  }
+  if (hidden.length === 0) {
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'block';
+  var html = '';
+  for (var i = 0; i < hidden.length; i++) {
+    var h = hidden[i];
+    html += '<a class="hidden-menu-link" onclick="showPage(\'' + h.key + '\', null)">' +
+      '<i class="fa ' + h.icon + '"></i> ' + h.label +
+      '<i class="fa fa-arrow-right" style="margin-left:auto;"></i>' +
+    '</a>';
+  }
+  list.innerHTML = html;
+}
+
 // ================== WHATSAPP HELPERS ==================
 function formatWaNumber(mobile) {
   if (!mobile) return '';
@@ -145,17 +416,14 @@ function sendOrderWhatsApp(order, shop) {
   if (!shop || !shop.mobile) return false;
   var number = formatWaNumber(shop.mobile);
   if (!number) return false;
-
   var bizName = settings.bizName || 'Atta Chakki';
   var itemsText = formatOrderItemsText(order.items);
-
   var msg = 'Assalam-o-Alaikum ' + shop.name + '!\n\n' +
     'Aap ka order book ho chuka hai:\n\n' +
     itemsText + '\n\n' +
     'Inshallah jald hi deliver ho jayega.\n' +
     'Shukriya!\n' +
     '- ' + bizName;
-
   var url = 'https://wa.me/' + number + '?text=' + encodeURIComponent(msg);
   window.open(url, '_blank');
   return true;
@@ -165,9 +433,7 @@ function sendDeliveredWhatsApp(order, shop) {
   if (!shop || !shop.mobile) return false;
   var number = formatWaNumber(shop.mobile);
   if (!number) return false;
-
   var bizName = settings.bizName || 'Atta Chakki';
-
   var lines = [];
   for (var i = 0; i < order.items.length; i++) {
     var it = order.items[i];
@@ -182,26 +448,21 @@ function sendDeliveredWhatsApp(order, shop) {
     }
   }
   var itemsText = lines.join('\n');
-
   var msg = 'Assalam-o-Alaikum ' + shop.name + '!\n\n' +
     'Aap ka order deliver ho chuka hai:\n\n' +
     itemsText + '\n\n' +
     'Shukriya!\n' +
     '- ' + bizName;
-
   var url = 'https://wa.me/' + number + '?text=' + encodeURIComponent(msg);
   window.open(url, '_blank');
   return true;
 }
 
-// Multiple items wala WhatsApp msg (checkbox wale modal se)
 function sendMultiDeliveredWhatsApp(items, shop) {
   if (!shop || !shop.mobile) return false;
   var number = formatWaNumber(shop.mobile);
   if (!number) return false;
-
   var bizName = settings.bizName || 'Atta Chakki';
-
   var lines = [];
   for (var i = 0; i < items.length; i++) {
     var it = items[i];
@@ -213,13 +474,11 @@ function sendMultiDeliveredWhatsApp(items, shop) {
     lines.push('• ' + it.product + ' — ' + qtyStr);
   }
   var itemsText = lines.join('\n');
-
   var msg = 'Assalam-o-Alaikum ' + shop.name + '!\n\n' +
     'Aap ka order deliver ho chuka hai:\n\n' +
     itemsText + '\n\n' +
     'Shukriya!\n' +
     '- ' + bizName;
-
   var url = 'https://wa.me/' + number + '?text=' + encodeURIComponent(msg);
   window.open(url, '_blank');
   return true;
@@ -236,12 +495,10 @@ function getShopById(shopId) {
 function cleanupRouteAfterDelivery() {
   if (!firebaseReady) return;
   var routesChanged = false;
-
   for (var r = routes.length - 1; r >= 0; r--) {
     var route = routes[r];
     var ids = (route.shopIds || []).slice();
     var newIds = [];
-
     for (var i = 0; i < ids.length; i++) {
       var sid = ids[i];
       var hasPending = false;
@@ -254,7 +511,6 @@ function cleanupRouteAfterDelivery() {
       }
       if (hasPending) newIds.push(sid);
     }
-
     if (newIds.length !== ids.length) {
       if (newIds.length === 0) {
         deleteFromFirebase('routes', route.id);
@@ -268,7 +524,6 @@ function cleanupRouteAfterDelivery() {
       }
     }
   }
-
   if (routesChanged) {
     renderRoutes();
     renderDashboardRoutes();
@@ -302,20 +557,12 @@ function showPinScreen() {
   document.getElementById('pinError').textContent = '';
   setTimeout(function() { document.getElementById('pinInput').focus(); }, 200);
 }
-
 function verifyPin() {
   var entered = document.getElementById('pinInput').value.trim();
   var err = document.getElementById('pinError');
   err.textContent = '';
-
-  if (!entered || entered.length !== 4) {
-    err.textContent = 'PIN 4-digit ka hona chahiye';
-    return;
-  }
-  if (!currentUser || !currentUser.pin) {
-    err.textContent = 'PIN set nahi hai. Password se login karein.';
-    return;
-  }
+  if (!entered || entered.length !== 4) { err.textContent = 'PIN 4-digit ka hona chahiye'; return; }
+  if (!currentUser || !currentUser.pin) { err.textContent = 'PIN set nahi hai. Password se login karein.'; return; }
   if (entered !== String(currentUser.pin)) {
     err.textContent = 'Ghalat PIN';
     document.getElementById('pinInput').value = '';
@@ -324,7 +571,6 @@ function verifyPin() {
   document.getElementById('pinScreen').style.display = 'none';
   showApp();
 }
-
 function pinForgot() {
   if (!confirm('PIN bhool gaye? Aapko password se login karna hoga.')) return;
   if (currentUser && currentUser.pin) {
@@ -345,16 +591,13 @@ function pinForgot() {
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
 }
-
 function promptPinSetup() {
   if (currentUser && currentUser.pin) return;
   document.getElementById('pinSetupBanner').style.display = 'block';
 }
-
 function hidePinBanner() {
   document.getElementById('pinSetupBanner').style.display = 'none';
 }
-
 function openPinSetup() {
   document.getElementById('pinSetupTitle').textContent = 'PIN Set Karein';
   document.getElementById('newPin1').value = '';
@@ -363,60 +606,46 @@ function openPinSetup() {
   document.getElementById('pinSetupModal').classList.add('active');
   setTimeout(function() { document.getElementById('newPin1').focus(); }, 200);
 }
-
 function closePinSetup() {
   document.getElementById('pinSetupModal').classList.remove('active');
 }
-
 function savePin() {
   var p1 = document.getElementById('newPin1').value.trim();
   var p2 = document.getElementById('newPin2').value.trim();
   var err = document.getElementById('pinSetupError');
   err.textContent = '';
-
   if (!p1 || !p2) { err.textContent = 'Dono PIN daalein'; return; }
   if (p1.length !== 4 || !/^\d{4}$/.test(p1)) { err.textContent = 'PIN 4-digit numbers ka hona chahiye'; return; }
   if (p1 !== p2) { err.textContent = 'PIN match nahi kar rahe'; return; }
   if (p1 === '0000') { err.textContent = '0000 PIN nahi rakh sakte'; return; }
-
   if (!currentUser) { err.textContent = 'User nahi mila'; return; }
-
   currentUser.pin = p1;
   localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
   if (firebaseReady && currentUser.id) {
-    db.collection('users').doc(String(currentUser.id)).update({ pin: p1 }).catch(function(e) {
-      console.log('PIN save error:', e);
-    });
+    db.collection('users').doc(String(currentUser.id)).update({ pin: p1 }).catch(function(e) { console.log(e); });
   }
   for (var i = 0; i < users.length; i++) {
     if (users[i].id === currentUser.id) { users[i].pin = p1; break; }
   }
-
   closePinSetup();
   hidePinBanner();
   renderPinSettings();
   alert('PIN save ho gaya! Agli baar website kholte hi PIN maanga jayega.');
 }
-
 function removePin() {
   if (!confirm('PIN remove karne hain? Agli baar seedha dashboard khulega.')) return;
   if (!currentUser) return;
-
   currentUser.pin = '';
   localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
   if (firebaseReady && currentUser.id) {
     db.collection('users').doc(String(currentUser.id)).update({ pin: '' }).catch(function(e) { console.log(e); });
   }
   for (var i = 0; i < users.length; i++) {
     if (users[i].id === currentUser.id) { users[i].pin = ''; break; }
   }
-
   renderPinSettings();
   alert('PIN remove ho gaya!');
 }
-
 function renderPinSettings() {
   var status = document.getElementById('pinStatusText');
   var setBtn = document.getElementById('setPinBtn');
@@ -459,6 +688,8 @@ function doSignup() {
     var adminUser = {
       user: user, pass: pass, display: user, isAdmin: true, pin: '',
       perms: { newOrder: true, deliver: true, shopkeepers: true, history: true, settings: true, routes: true },
+      menuLayout: JSON.parse(JSON.stringify(DEFAULT_MENU)),
+      dashboardLayout: JSON.parse(JSON.stringify(DEFAULT_DASHBOARD)),
       createdAt: new Date().toISOString()
     };
     db.collection('users').add(adminUser).then(function(ref) {
@@ -544,6 +775,7 @@ function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('pinScreen').style.display = 'none';
   document.getElementById('appWrapper').style.display = 'block';
+  loadLayouts();
   renderSidebarNav();
   applySettings();
   renderDashboard();
@@ -554,23 +786,20 @@ function showApp() {
   renderRoutes();
   renderRouteShopPicker();
   renderPinSettings();
+  applyDashboardLayout();
+  renderHiddenMenuList();
   if (isAdmin()) renderUsers();
 }
 
 // ================== MANUAL SYNC ==================
 function manualSync() {
-  if (!firebaseReady) {
-    alert('Firebase load nahi hua. Page refresh karein.');
-    return;
-  }
+  if (!firebaseReady) { alert('Firebase load nahi hua. Page refresh karein.'); return; }
   var btn = document.getElementById('syncBtn');
   var icon = document.getElementById('syncIcon');
   if (icon) icon.className = 'fa fa-sync-alt fa-spin';
   if (btn) btn.disabled = true;
-
   loadAllData(function() {
     autoShiftPendingOrders();
-
     if (currentUser) {
       for (var i = 0; i < users.length; i++) {
         if (users[i].id === currentUser.id) {
@@ -580,7 +809,8 @@ function manualSync() {
         }
       }
     }
-
+    loadLayouts();
+    renderSidebarNav();
     renderDashboard();
     renderShopkeepers();
     renderRoutes();
@@ -588,17 +818,16 @@ function manualSync() {
     renderSettings();
     renderRouteShopPicker();
     renderPinSettings();
+    applyDashboardLayout();
+    renderHiddenMenuList();
     if (isAdmin()) renderUsers();
     if (can('newOrder')) prepareOrderForm();
-
     var ordPage = document.getElementById('orders');
     if (ordPage && ordPage.classList.contains('active')) renderOrdersPage();
     var delPage = document.getElementById('delivery');
     if (delPage && delPage.classList.contains('active')) renderDelivery();
-
     if (icon) icon.className = 'fa fa-sync-alt';
     if (btn) btn.disabled = false;
-
     var titleEl = document.getElementById('topbarTitle');
     var oldTitle = titleEl ? titleEl.textContent : '';
     if (titleEl) {
@@ -611,18 +840,34 @@ function manualSync() {
 // ================== SIDEBAR ==================
 function renderSidebarNav() {
   var nav = document.getElementById('sidebarNav');
+  if (!nav || !menuLayout) return;
+
+  // Current active page
+  var activePage = 'dashboard';
+  var pages = document.querySelectorAll('.page.active');
+  if (pages.length > 0) activePage = pages[0].id;
+
   var html = '';
-  html += '<button class="nav-btn active" onclick="showPage(\'dashboard\', this)"><i class="fa fa-home"></i> <span>Dashboard</span></button>';
-  if (can('newOrder')) html += '<button class="nav-btn" onclick="showPage(\'neworder\', this)"><i class="fa fa-plus-circle"></i> <span>Naya Order</span></button>';
-  html += '<button class="nav-btn" onclick="showPage(\'orders\', this)"><i class="fa fa-truck"></i> <span>Orders / Loading</span></button>';
-  if (can('routes')) html += '<button class="nav-btn" onclick="showPage(\'routes\', this)"><i class="fa fa-route"></i> <span>Delivery Routes</span></button>';
-  if (can('shopkeepers')) html += '<button class="nav-btn" onclick="showPage(\'shopkeepers\', this)"><i class="fa fa-users"></i> <span>Shopkeepers</span></button>';
-  html += '<button class="nav-btn" onclick="showPage(\'delivery\', this)"><i class="fa fa-check-circle"></i> <span>Delivery</span></button>';
-  if (can('history')) html += '<button class="nav-btn" onclick="showPage(\'history\', this)"><i class="fa fa-clock"></i> <span>History</span></button>';
-  if (isAdmin()) html += '<button class="nav-btn" onclick="showPage(\'users\', this)"><i class="fa fa-user-shield"></i> <span>Users</span></button>';
-  if (can('settings')) html += '<button class="nav-btn" onclick="showPage(\'settings\', this)"><i class="fa fa-gear"></i> <span>Settings</span></button>';
+  for (var i = 0; i < menuLayout.length; i++) {
+    var item = menuLayout[i];
+    if (!item.show) continue;
+
+    // Permission check
+    if (item.key === 'neworder' && !can('newOrder')) continue;
+    if (item.key === 'shopkeepers' && !can('shopkeepers')) continue;
+    if (item.key === 'history' && !can('history')) continue;
+    if (item.key === 'settings' && !can('settings')) continue;
+    if (item.key === 'users' && !isAdmin()) continue;
+    if (item.key === 'routes' && !can('routes')) continue;
+
+    var activeClass = (activePage === item.key) ? ' active' : '';
+    html += '<button class="nav-btn' + activeClass + '" onclick="showPage(\'' + item.key + '\', this)">' +
+      '<i class="fa ' + item.icon + '"></i> <span>' + item.label + '</span>' +
+    '</button>';
+  }
   html += '<button class="nav-btn" onclick="doLogout()"><i class="fa fa-sign-out-alt"></i> <span>Logout</span></button>';
   nav.innerHTML = html;
+
   if (currentUser) {
     document.getElementById('userNameLabel').textContent = currentUser.display || currentUser.user;
     var roleEl = document.getElementById('userRoleLabel');
@@ -712,16 +957,32 @@ function showPage(pageId, btn) {
   if (pageId === 'settings' && !can('settings')) { alert('Permission nahi hai'); return; }
   if (pageId === 'users' && !isAdmin()) { alert('Sirf Admin'); return; }
   if (pageId === 'routes' && !can('routes')) { alert('Permission nahi hai'); return; }
+
   var pages = document.querySelectorAll('.page');
   for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
   var target = document.getElementById(pageId);
   if (target) target.classList.add('active');
+
+  // Sidebar nav highlight
   var navBtns = document.querySelectorAll('.nav-btn');
   for (var j = 0; j < navBtns.length; j++) navBtns[j].classList.remove('active');
   if (btn) btn.classList.add('active');
+
   var sb = document.getElementById('sidebar');
   if (sb) sb.classList.remove('open');
-  if (pageId === 'dashboard') renderDashboard();
+
+  // Close menu edit if open
+  if (menuEditMode) {
+    menuEditMode = false;
+    document.getElementById('menuEditPanel').style.display = 'none';
+    document.getElementById('sidebarNav').style.display = 'flex';
+    document.getElementById('editMenuBtn').innerHTML = '<i class="fa fa-pen"></i> Edit Menu';
+  }
+
+  if (pageId === 'dashboard') {
+    renderDashboard();
+    applyDashboardLayout();
+  }
   if (pageId === 'shopkeepers') renderShopkeepers();
   if (pageId === 'neworder') prepareOrderForm();
   if (pageId === 'orders') {
@@ -731,7 +992,7 @@ function showPage(pageId, btn) {
   }
   if (pageId === 'delivery') renderDelivery();
   if (pageId === 'history') renderHistory();
-  if (pageId === 'settings') { renderSettings(); renderPinSettings(); }
+  if (pageId === 'settings') { renderSettings(); renderPinSettings(); renderHiddenMenuList(); }
   if (pageId === 'users') renderUsers();
   if (pageId === 'routes') { renderRoutes(); renderRouteShopPicker(); }
   window.scrollTo(0, 0);
@@ -821,7 +1082,12 @@ function saveUser() {
     }
     alert('User save!'); resetUserForm(); renderUsers(); return;
   }
-  var newUser = { user: user, pass: pass, display: display || user, isAdmin: false, perms: perms, pin: '', createdAt: new Date().toISOString() };
+  var newUser = {
+    user: user, pass: pass, display: display || user, isAdmin: false, perms: perms, pin: '',
+    menuLayout: JSON.parse(JSON.stringify(DEFAULT_MENU)),
+    dashboardLayout: JSON.parse(JSON.stringify(DEFAULT_DASHBOARD)),
+    createdAt: new Date().toISOString()
+  };
   if (firebaseReady) {
     db.collection('users').add(newUser).then(function(ref) {
       newUser.id = ref.id;
@@ -1031,7 +1297,6 @@ function openPendingShopModal(shopId) {
       var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
       var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
       if (remM <= 0 && remK <= 0) continue;
-
       var pName = it.product;
       if (!productMap[pName]) {
         productMap[pName] = { maund: 0, kg: 0, kgList: [], orderIds: [] };
@@ -1144,13 +1409,11 @@ function deliverSelectedItems() {
 
   var shopId = currentPendingShopId;
   var shop = getShopById(shopId);
-
   var deliveredItemsForWa = [];
 
   for (var s = 0; s < selectedIdx.length; s++) {
     var pd = currentPendingProducts[selectedIdx[s]];
     if (!pd) continue;
-
     for (var i = 0; i < pd.orderIds.length; i++) {
       var oid = pd.orderIds[i];
       var order = null;
@@ -1158,18 +1421,15 @@ function deliverSelectedItems() {
         if (orders[j].id == oid) { order = orders[j]; break; }
       }
       if (!order) continue;
-
       for (var k = 0; k < order.items.length; k++) {
         var it = order.items[k];
         if (it.product !== pd.product) continue;
         it.deliveredMaund = parseInt(it.maund) || 0;
         it.deliveredKg = parseInt(it.kg) || 0;
       }
-
       order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
       saveToFirebase('orders', order.id, order);
     }
-
     deliveredItemsForWa.push({
       product: pd.product,
       maund: pd.maund,
@@ -1184,190 +1444,6 @@ function deliverSelectedItems() {
 
   if (shop && shop.mobile && deliveredItemsForWa.length > 0) {
     sendMultiDeliveredWhatsApp(deliveredItemsForWa, shop);
-  }
-}
-
-function openCombinedDeliverModal(productName, orderIds) {
-  if (!can('deliver')) { alert('Permission nahi hai'); return; }
-  currentCombinedProduct = productName;
-  currentCombinedOrderIds = orderIds || [];
-
-  var totalM = 0, totalK = 0;
-  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
-    var oid = currentCombinedOrderIds[i];
-    for (var j = 0; j < orders.length; j++) {
-      var o = orders[j];
-      if (o.id != oid) continue;
-      for (var k = 0; k < o.items.length; k++) {
-        var it = o.items[k];
-        if (it.product !== productName) continue;
-        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
-        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
-        if (remM <= 0 && remK <= 0) continue;
-        totalM += remM;
-        totalK += remK;
-      }
-    }
-  }
-
-  var shopName = '';
-  var shopIdForName = null;
-  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
-    for (var j = 0; j < orders.length; j++) {
-      if (orders[j].id == currentCombinedOrderIds[i]) {
-        shopIdForName = orders[j].shopId;
-        break;
-      }
-    }
-    if (shopIdForName) break;
-  }
-  for (var i = 0; i < shopkeepers.length; i++) {
-    if (shopkeepers[i].id == shopIdForName) shopName = shopkeepers[i].name;
-  }
-
-  document.getElementById('deliverTitle').textContent = productName + ' - ' + shopName;
-  var body = document.getElementById('deliverBody');
-  var html = '<div class="deliver-row">' +
-    '<div class="deliver-row-head">Baqi: ' + qtyText(totalM, totalK) + '</div>' +
-    '<div class="deliver-row-sub">Kitna deliver? (khaali chhoro to poora)</div>' +
-    '<div class="deliver-qty-row">' +
-      '<div class="form-group"><label>Maund</label>' +
-        '<input type="number" class="combined-maund" min="0" max="' + totalM + '" placeholder="' + totalM + '" />' +
-      '</div>' +
-      '<div class="form-group"><label>Kg</label>' +
-        '<input type="number" class="combined-kg" min="0" max="' + totalK + '" placeholder="' + totalK + '" />' +
-      '</div>' +
-    '</div>' +
-  '</div>';
-  body.innerHTML = html;
-  document.getElementById('deliverModal').classList.add('active');
-}
-
-function confirmCombinedDelivery() {
-  if (!can('deliver')) return;
-  if (!currentCombinedProduct) return;
-
-  var mInput = document.querySelector('.combined-maund');
-  var kInput = document.querySelector('.combined-kg');
-  var dm = mInput ? parseInt(mInput.value) : NaN;
-  var dk = kInput ? parseInt(kInput.value) : NaN;
-
-  var totalM = 0, totalK = 0;
-  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
-    var oid = currentCombinedOrderIds[i];
-    for (var j = 0; j < orders.length; j++) {
-      var o = orders[j];
-      if (o.id != oid) continue;
-      for (var k = 0; k < o.items.length; k++) {
-        var it = o.items[k];
-        if (it.product !== currentCombinedProduct) continue;
-        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
-        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
-        if (remM <= 0 && remK <= 0) continue;
-        totalM += remM;
-        totalK += remK;
-      }
-    }
-  }
-
-  if (isNaN(dm)) dm = totalM;
-  if (isNaN(dk)) dk = totalK;
-  if (dm > totalM) dm = totalM;
-  if (dk > totalK) dk = totalK;
-  if (dm < 0) dm = 0;
-  if (dk < 0) dk = 0;
-
-  var remainingM = dm, remainingK = dk;
-
-  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
-    if (remainingM <= 0 && remainingK <= 0) break;
-    var oid = currentCombinedOrderIds[i];
-    var order = null;
-    for (var j = 0; j < orders.length; j++) {
-      if (orders[j].id == oid) { order = orders[j]; break; }
-    }
-    if (!order) continue;
-
-    for (var k = 0; k < order.items.length; k++) {
-      if (remainingM <= 0 && remainingK <= 0) break;
-      var it = order.items[k];
-      if (it.product !== currentCombinedProduct) continue;
-      var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
-      var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
-      if (remM <= 0 && remK <= 0) continue;
-
-      var giveM = Math.min(remM, remainingM);
-      var giveK = Math.min(remK, remainingK);
-
-      it.deliveredMaund = (parseInt(it.deliveredMaund) || 0) + giveM;
-      it.deliveredKg = (parseInt(it.deliveredKg) || 0) + giveK;
-      remainingM -= giveM;
-      remainingK -= giveK;
-    }
-
-    order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
-    saveToFirebase('orders', order.id, order);
-  }
-
-  var waShop = null;
-  var waOrder = null;
-  if (currentCombinedOrderIds.length > 0) {
-    for (var i = 0; i < orders.length; i++) {
-      if (orders[i].id == currentCombinedOrderIds[0]) { waOrder = orders[i]; break; }
-    }
-    if (waOrder) waShop = getShopById(waOrder.shopId);
-  }
-
-  closeDeliverModal();
-  cleanupRouteAfterDelivery();
-  renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
-  var pm = document.getElementById('pendingShopModal');
-  if (pm && pm.classList.contains('active')) refreshPendingShopModal();
-
-  if (waShop && waShop.mobile && waOrder) {
-    sendDeliveredWhatsApp(waOrder, waShop);
-  }
-}
-
-function markAllCombinedDelivered() {
-  if (!can('deliver')) return;
-  if (!currentCombinedProduct) return;
-
-  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
-    var oid = currentCombinedOrderIds[i];
-    var order = null;
-    for (var j = 0; j < orders.length; j++) {
-      if (orders[j].id == oid) { order = orders[j]; break; }
-    }
-    if (!order) continue;
-
-    for (var k = 0; k < order.items.length; k++) {
-      var it = order.items[k];
-      if (it.product !== currentCombinedProduct) continue;
-      it.deliveredMaund = parseInt(it.maund) || 0;
-      it.deliveredKg = parseInt(it.kg) || 0;
-    }
-    order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
-    saveToFirebase('orders', order.id, order);
-  }
-
-  var waShop = null;
-  var waOrder = null;
-  if (currentCombinedOrderIds.length > 0) {
-    for (var i = 0; i < orders.length; i++) {
-      if (orders[i].id == currentCombinedOrderIds[0]) { waOrder = orders[i]; break; }
-    }
-    if (waOrder) waShop = getShopById(waOrder.shopId);
-  }
-
-  closeDeliverModal();
-  cleanupRouteAfterDelivery();
-  renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
-  var pm = document.getElementById('pendingShopModal');
-  if (pm && pm.classList.contains('active')) refreshPendingShopModal();
-
-  if (waShop && waShop.mobile && waOrder) {
-    sendDeliveredWhatsApp(waOrder, waShop);
   }
 }
 
@@ -1530,7 +1606,6 @@ function saveRoute() {
   var name = document.getElementById('routeName').value.trim();
   if (!name) name = generateRouteName();
   if (selectedRouteShops.length === 0) { alert('Kam az kam ek shopkeeper chunein!'); return; }
-
   var currentRouteId = id || null;
   for (var r = 0; r < routes.length; r++) {
     var route = routes[r];
@@ -1547,7 +1622,6 @@ function saveRoute() {
       saveToFirebase('routes', route.id, route);
     }
   }
-
   if (id) {
     for (var i = 0; i < routes.length; i++) {
       if (routes[i].id == id) {
@@ -1562,7 +1636,6 @@ function saveRoute() {
     showPage('dashboard');
     return;
   }
-
   var newRoute = {
     name: name,
     shopIds: selectedRouteShops.slice(),
@@ -1616,38 +1689,31 @@ function renderRouteShopPicker() {
   var box = document.getElementById('routeShopPicker');
   if (!box) return;
   var currentRouteId = document.getElementById('routeId').value || null;
-
   var visible = [];
   for (var i = 0; i < shopkeepers.length; i++) {
     var s = shopkeepers[i];
     var hasOrder = shopHasTodayPendingOrder(s.id);
     if (hasOrder) visible.push(s);
   }
-
   if (visible.length === 0) {
     box.innerHTML = '<div class="route-empty-hint"><i class="fa fa-inbox"></i>Aaj koi shopkeeper ka pending order nahi hai.</div>';
     return;
   }
-
   var html = '';
   for (var i = 0; i < visible.length; i++) {
     var s = visible[i];
     var selected = selectedRouteShops.indexOf(s.id) !== -1;
-
     var otherRoute = null;
     for (var r = 0; r < routes.length; r++) {
       if (routes[r].id === currentRouteId) continue;
       var ids = routes[r].shopIds || [];
       if (ids.indexOf(s.id) !== -1) { otherRoute = routes[r]; break; }
     }
-
     var routeBadge = '';
     if (otherRoute && !selected) {
       routeBadge = '<span class="other-route-badge">📍 ' + otherRoute.name + '</span>';
     }
-
     var orderSummaryText = getShopOrderSummaryText(s.id);
-
     html += '<label class="route-shop-item ' + (selected ? 'selected' : '') + '">' +
       '<input type="checkbox" ' + (selected ? 'checked' : '') + ' onchange="toggleRouteShop(\'' + s.id + '\', this.checked)" />' +
       '<span class="shop-info">' +
@@ -1749,7 +1815,6 @@ function getRouteStats(route) {
   var shopIds = route.shopIds || [];
   var productMap = {};
   var productOrder = [];
-
   for (var i = 0; i < shopIds.length; i++) {
     var sid = shopIds[i];
     var hasPending = false;
@@ -1765,7 +1830,6 @@ function getRouteStats(route) {
         if (remM <= 0 && remK <= 0) continue;
         totalKg += (remM * 40) + remK;
         totalMaund += remM;
-
         var pName = it.product;
         if (!productMap[pName]) {
           productMap[pName] = { maund: 0, kgList: [] };
@@ -1777,14 +1841,12 @@ function getRouteStats(route) {
     }
     if (hasPending) pendingShopCount++;
   }
-
   var breakdown = [];
   for (var p = 0; p < productOrder.length; p++) {
     var name = productOrder[p];
     var data = productMap[name];
     breakdown.push({ product: name, maund: data.maund, kgList: data.kgList });
   }
-
   return {
     totalKg: totalKg,
     totalMaund: totalMaund,
@@ -1813,15 +1875,12 @@ function renderDashboardRoutes() {
   var list = document.getElementById('dashboardRoutesList');
   var badge = document.getElementById('routesBadge');
   if (!list) return;
-
   var visibleRoutes = [];
   for (var i = 0; i < routes.length; i++) {
     var stats = getRouteStats(routes[i]);
     if (stats.pendingShopCount > 0) visibleRoutes.push({ route: routes[i], stats: stats });
   }
-
   if (badge) badge.textContent = visibleRoutes.length;
-
   if (visibleRoutes.length === 0) {
     if (routes.length === 0) {
       list.innerHTML = '<div class="empty"><i class="fa fa-route"></i>Abhi koi route nahi. "Delivery Route Add" se banao.</div>';
@@ -1830,7 +1889,6 @@ function renderDashboardRoutes() {
     }
     return;
   }
-
   var html = '';
   for (var i = 0; i < visibleRoutes.length; i++) {
     var r = visibleRoutes[i].route;
@@ -1851,28 +1909,23 @@ function renderDashboardRoutes() {
   }
   list.innerHTML = html;
 }
-
 function openRouteModal(routeId) {
   var route = null;
   for (var i = 0; i < routes.length; i++) {
     if (routes[i].id == routeId) route = routes[i];
   }
   if (!route) return;
-
   document.getElementById('routeModalTitle').textContent = route.name;
   var body = document.getElementById('routeModalBody');
   var shopIds = route.shopIds || [];
   var stats = getRouteStats(route);
-
   if (shopIds.length === 0) {
     body.innerHTML = '<div class="empty">Is route mein koi shopkeeper nahi.</div>';
     document.getElementById('routeModal').classList.add('active');
     return;
   }
-
   var html = '';
   var grandTotalKg = 0;
-
   for (var i = 0; i < shopIds.length; i++) {
     var sid = shopIds[i];
     var shop = null;
@@ -1880,11 +1933,9 @@ function openRouteModal(routeId) {
       if (shopkeepers[j].id == sid) shop = shopkeepers[j];
     }
     if (!shop) continue;
-
     var productMap = {};
     var productOrder = [];
     var shopTotalKg = 0;
-
     for (var j = 0; j < orders.length; j++) {
       var o = orders[j];
       if (o.shopId != sid) continue;
@@ -1894,9 +1945,7 @@ function openRouteModal(routeId) {
         var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
         var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
         if (remM <= 0 && remK <= 0) continue;
-
         shopTotalKg += (remM * 40) + remK;
-
         var pName = it.product;
         if (!productMap[pName]) {
           productMap[pName] = { maund: 0, kgList: [] };
@@ -1906,11 +1955,8 @@ function openRouteModal(routeId) {
         if (remK > 0) productMap[pName].kgList.push(remK);
       }
     }
-
     if (productOrder.length === 0) continue;
-
     grandTotalKg += shopTotalKg;
-
     var itemsHtml = '';
     for (var p = 0; p < productOrder.length; p++) {
       var pName = productOrder[p];
@@ -1919,13 +1965,11 @@ function openRouteModal(routeId) {
       if (pdata.maund > 0) qtyParts.push(pdata.maund + ' maund');
       for (var q = 0; q < pdata.kgList.length; q++) qtyParts.push(pdata.kgList[q] + ' kg');
       var qtyStr = qtyParts.join(', ') || '0 kg';
-
       itemsHtml += '<div class="route-product-line">' +
         '<span class="rp-name">📦 ' + pName + '</span>' +
         '<span class="rp-qty">' + qtyStr + '</span>' +
       '</div>';
     }
-
     html += '<div class="route-detail-shop">' +
       '<div class="route-detail-shop-head">' +
         '<h4><i class="fa fa-store"></i> ' + shop.name + '</h4>' +
@@ -1935,15 +1979,12 @@ function openRouteModal(routeId) {
       '<div class="route-detail-items">' + itemsHtml + '</div>' +
     '</div>';
   }
-
   if (html === '') {
     body.innerHTML = '<div class="empty"><i class="fa fa-check-circle"></i>Is route ke sab orders deliver ho gaye!</div>';
     document.getElementById('routeModal').classList.add('active');
     return;
   }
-
   var breakdownHtml = renderRouteProductBreakdown(stats.productBreakdown);
-
   html += '<div class="load-summary route-total-summary" style="margin-top:18px;margin-bottom:0;">' +
     '<div style="width:100%;">' +
       '<p>Route Ka Total Load</p>' +
@@ -1955,7 +1996,6 @@ function openRouteModal(routeId) {
       '<div class="big-num">' + shopIds.length + '</div>' +
     '</div>' +
   '</div>';
-
   body.innerHTML = html;
   document.getElementById('routeModal').classList.add('active');
 }
@@ -1979,11 +2019,9 @@ function showNewOrderStep(step) {
   var step3 = document.getElementById('quantityStep');
   var heading = document.getElementById('newOrderHeading');
   var sub = document.getElementById('newOrderSub');
-
   step1.style.display = 'none';
   step2.style.display = 'none';
   step3.style.display = 'none';
-
   if (step === 1) {
     step1.style.display = 'block';
     if (heading) heading.textContent = 'Naya Order';
@@ -2187,7 +2225,6 @@ function saveMultiOrder() {
       renderDashboard();
       renderRouteShopPicker();
       showPage('dashboard');
-
       var shop = getShopById(shopId);
       if (shop && shop.mobile) {
         sendOrderWhatsApp(newOrder, shop);
@@ -2297,7 +2334,7 @@ function renderOrdersPage() {
   list.innerHTML = html;
 }
 
-// ================== DELIVER MODAL (purana) ==================
+// ================== DELIVER MODAL ==================
 function openDeliverModal(orderId, product) {
   if (!can('deliver')) { alert('Permission nahi hai'); return; }
   currentDeliverOrderId = orderId;
@@ -2365,7 +2402,6 @@ function confirmDelivery() {
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
-
   var shop = getShopById(order.shopId);
   if (shop && shop.mobile) {
     sendDeliveredWhatsApp(order, shop);
@@ -2391,7 +2427,6 @@ function markAllDelivered() {
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
-
   var shop = getShopById(order.shopId);
   if (shop && shop.mobile) {
     sendDeliveredWhatsApp(order, shop);
@@ -2404,6 +2439,167 @@ function confirmDeliverySmart() {
 function markAllDeliveredSmart() {
   if (currentCombinedProduct) markAllCombinedDelivered();
   else markAllDelivered();
+}
+function openCombinedDeliverModal(productName, orderIds) {
+  if (!can('deliver')) { alert('Permission nahi hai'); return; }
+  currentCombinedProduct = productName;
+  currentCombinedOrderIds = orderIds || [];
+  var totalM = 0, totalK = 0;
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    var oid = currentCombinedOrderIds[i];
+    for (var j = 0; j < orders.length; j++) {
+      var o = orders[j];
+      if (o.id != oid) continue;
+      for (var k = 0; k < o.items.length; k++) {
+        var it = o.items[k];
+        if (it.product !== productName) continue;
+        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        if (remM <= 0 && remK <= 0) continue;
+        totalM += remM;
+        totalK += remK;
+      }
+    }
+  }
+  var shopName = '';
+  var shopIdForName = null;
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    for (var j = 0; j < orders.length; j++) {
+      if (orders[j].id == currentCombinedOrderIds[i]) {
+        shopIdForName = orders[j].shopId;
+        break;
+      }
+    }
+    if (shopIdForName) break;
+  }
+  for (var i = 0; i < shopkeepers.length; i++) {
+    if (shopkeepers[i].id == shopIdForName) shopName = shopkeepers[i].name;
+  }
+  document.getElementById('deliverTitle').textContent = productName + ' - ' + shopName;
+  var body = document.getElementById('deliverBody');
+  var html = '<div class="deliver-row">' +
+    '<div class="deliver-row-head">Baqi: ' + qtyText(totalM, totalK) + '</div>' +
+    '<div class="deliver-row-sub">Kitna deliver? (khaali chhoro to poora)</div>' +
+    '<div class="deliver-qty-row">' +
+      '<div class="form-group"><label>Maund</label>' +
+        '<input type="number" class="combined-maund" min="0" max="' + totalM + '" placeholder="' + totalM + '" />' +
+      '</div>' +
+      '<div class="form-group"><label>Kg</label>' +
+        '<input type="number" class="combined-kg" min="0" max="' + totalK + '" placeholder="' + totalK + '" />' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+  body.innerHTML = html;
+  document.getElementById('deliverModal').classList.add('active');
+}
+function confirmCombinedDelivery() {
+  if (!can('deliver')) return;
+  if (!currentCombinedProduct) return;
+  var mInput = document.querySelector('.combined-maund');
+  var kInput = document.querySelector('.combined-kg');
+  var dm = mInput ? parseInt(mInput.value) : NaN;
+  var dk = kInput ? parseInt(kInput.value) : NaN;
+  var totalM = 0, totalK = 0;
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    var oid = currentCombinedOrderIds[i];
+    for (var j = 0; j < orders.length; j++) {
+      var o = orders[j];
+      if (o.id != oid) continue;
+      for (var k = 0; k < o.items.length; k++) {
+        var it = o.items[k];
+        if (it.product !== currentCombinedProduct) continue;
+        var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+        var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        if (remM <= 0 && remK <= 0) continue;
+        totalM += remM;
+        totalK += remK;
+      }
+    }
+  }
+  if (isNaN(dm)) dm = totalM;
+  if (isNaN(dk)) dk = totalK;
+  if (dm > totalM) dm = totalM;
+  if (dk > totalK) dk = totalK;
+  if (dm < 0) dm = 0;
+  if (dk < 0) dk = 0;
+  var remainingM = dm, remainingK = dk;
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    if (remainingM <= 0 && remainingK <= 0) break;
+    var oid = currentCombinedOrderIds[i];
+    var order = null;
+    for (var j = 0; j < orders.length; j++) {
+      if (orders[j].id == oid) { order = orders[j]; break; }
+    }
+    if (!order) continue;
+    for (var k = 0; k < order.items.length; k++) {
+      if (remainingM <= 0 && remainingK <= 0) break;
+      var it = order.items[k];
+      if (it.product !== currentCombinedProduct) continue;
+      var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+      var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+      if (remM <= 0 && remK <= 0) continue;
+      var giveM = Math.min(remM, remainingM);
+      var giveK = Math.min(remK, remainingK);
+      it.deliveredMaund = (parseInt(it.deliveredMaund) || 0) + giveM;
+      it.deliveredKg = (parseInt(it.deliveredKg) || 0) + giveK;
+      remainingM -= giveM;
+      remainingK -= giveK;
+    }
+    order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
+    saveToFirebase('orders', order.id, order);
+  }
+  var waShop = null;
+  var waOrder = null;
+  if (currentCombinedOrderIds.length > 0) {
+    for (var i = 0; i < orders.length; i++) {
+      if (orders[i].id == currentCombinedOrderIds[0]) { waOrder = orders[i]; break; }
+    }
+    if (waOrder) waShop = getShopById(waOrder.shopId);
+  }
+  closeDeliverModal();
+  cleanupRouteAfterDelivery();
+  renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+  var pm = document.getElementById('pendingShopModal');
+  if (pm && pm.classList.contains('active')) refreshPendingShopModal();
+  if (waShop && waShop.mobile && waOrder) {
+    sendDeliveredWhatsApp(waOrder, waShop);
+  }
+}
+function markAllCombinedDelivered() {
+  if (!can('deliver')) return;
+  if (!currentCombinedProduct) return;
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    var oid = currentCombinedOrderIds[i];
+    var order = null;
+    for (var j = 0; j < orders.length; j++) {
+      if (orders[j].id == oid) { order = orders[j]; break; }
+    }
+    if (!order) continue;
+    for (var k = 0; k < order.items.length; k++) {
+      var it = order.items[k];
+      if (it.product !== currentCombinedProduct) continue;
+      it.deliveredMaund = parseInt(it.maund) || 0;
+      it.deliveredKg = parseInt(it.kg) || 0;
+    }
+    order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
+    saveToFirebase('orders', order.id, order);
+  }
+  var waShop = null;
+  var waOrder = null;
+  if (currentCombinedOrderIds.length > 0) {
+    for (var i = 0; i < orders.length; i++) {
+      if (orders[i].id == currentCombinedOrderIds[0]) { waOrder = orders[i]; break; }
+    }
+    if (waOrder) waShop = getShopById(waOrder.shopId);
+  }
+  closeDeliverModal();
+  cleanupRouteAfterDelivery();
+  renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+  var pm = document.getElementById('pendingShopModal');
+  if (pm && pm.classList.contains('active')) refreshPendingShopModal();
+  if (waShop && waShop.mobile && waOrder) {
+    sendDeliveredWhatsApp(waOrder, waShop);
+  }
 }
 
 // ================== DELIVERY PAGE ==================
@@ -2577,7 +2773,6 @@ window.addEventListener('load', function() {
         if (found) {
           currentUser = found;
           isLoggedIn = true;
-
           if (currentUser.pin && String(currentUser.pin).length === 4) {
             showPinScreen();
             return;
