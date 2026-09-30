@@ -78,12 +78,6 @@
   </div>
 </div>
 
-<!-- NAV BUTTONS BAR (Back + Home) — Har page pe dikhega -->
-<div class="nav-buttons-bar" id="navButtonsBar">
-  <button class="nav-pg-btn back-pg-btn" onclick="goBack()"><i class="fa fa-arrow-left"></i> Back</button>
-  <button class="nav-pg-btn home-pg-btn" onclick="goHome()"><i class="fa fa-home"></i> Home</button>
-</div>
-
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo"><i class="fa fa-wheat-awn"></i><span id="sidebarTitle">Atta Chakki</span></div>
   <div class="user-info-box">
@@ -176,6 +170,7 @@
 
   <section id="neworder" class="page">
     <div class="page-header">
+      <button class="btn back-btn" onclick="newOrderBack()"><i class="fa fa-arrow-left"></i> Wapas</button>
       <h1 id="newOrderHeading">Naya Order</h1>
       <p class="page-sub" id="newOrderSub">Pehle shopkeeper chunein</p>
     </div>
@@ -250,6 +245,7 @@
 
   <section id="orders" class="page">
     <div class="page-header">
+      <button class="btn back-btn" onclick="showPage('dashboard')"><i class="fa fa-arrow-left"></i> Wapas</button>
       <h1><i class="fa fa-truck"></i> Orders / Loading</h1>
       <p class="page-sub">Kis dukaan pe kitna maal dena hai</p>
     </div>
@@ -267,6 +263,7 @@
 
   <section id="routes" class="page">
     <div class="page-header">
+      <button class="btn back-btn" onclick="showPage('dashboard')"><i class="fa fa-arrow-left"></i> Dashboard</button>
       <h1><i class="fa fa-route"></i> Delivery Routes</h1>
       <p class="page-sub">Har shopkeeper ke products alag alag route mein assign karein</p>
     </div>
@@ -421,23 +418,6 @@
       <div class="form-group"><label>Website ka naam</label><input type="text" id="setBizName" /></div>
       <button class="btn primary" onclick="saveBizName()"><i class="fa fa-save"></i> Save</button>
     </div>
-
-    <div class="box" id="displaySizeBox">
-      <h3><i class="fa fa-ruler-combined"></i> Display Size</h3>
-      <p class="hint">Text aur buttons ka size adjust karein</p>
-      <div class="display-size-slider-wrap">
-        <input type="range" id="displaySizeSlider" min="50" max="150" value="100" step="5" oninput="onDisplaySizeChange(this.value)" />
-        <span class="display-size-value" id="displaySizeValue">100%</span>
-      </div>
-      <div class="display-size-preview" id="displaySizePreview">
-        <span>Preview: Aa Bb Cc</span>
-        <button class="btn small primary" style="margin:0;">Sample Button</button>
-      </div>
-      <button class="btn small" onclick="resetDisplaySize()" style="margin-top:10px;">
-        <i class="fa fa-rotate-left"></i> Reset to 100%
-      </button>
-    </div>
-
     <div class="box" id="pinSettingsBox">
       <h3><i class="fa fa-shield-halved"></i> PIN Lock</h3>
       <p class="hint" id="pinStatusText">PIN abhi set nahi hai</p>
