@@ -834,7 +834,6 @@ function renderShopkeepers() {
 }
 
 // ================== DELIVERY ROUTES ==================
-// Route name auto
 function generateRouteName() {
   var nextNum = routes.length + 1;
   var names = {};
@@ -855,7 +854,6 @@ function updateRouteNameField() {
   el.value = generateRouteName();
 }
 
-// Check karo ke shopkeeper ka aaj ka koi pending/partial order hai
 function shopHasTodayPendingOrder(shopId) {
   var today = todayStr();
   for (var i = 0; i < orders.length; i++) {
@@ -868,16 +866,6 @@ function shopHasTodayPendingOrder(shopId) {
   return false;
 }
 
-// Shopkeeper kis route mein hai (find)
-function findShopRoute(shopId) {
-  for (var i = 0; i < routes.length; i++) {
-    var ids = routes[i].shopIds || [];
-    if (ids.indexOf(shopId) !== -1) return routes[i];
-  }
-  return null;
-}
-
-// Save route
 function saveRoute() {
   if (!can('routes')) { alert('Permission nahi hai'); return; }
   var id = document.getElementById('routeId').value;
@@ -885,19 +873,17 @@ function saveRoute() {
   if (!name) name = generateRouteName();
   if (selectedRouteShops.length === 0) { alert('Kam az kam ek shopkeeper chunein!'); return; }
 
-  // Auto-transfer: jo shopkeepers doosre route mein hain unhe nikaal do
-  // (jab tak wo is route mein select nahi hain)
+  // Auto-transfer: agar koi selected shopkeeper kisi aur route mein hai to usse hata do
   var currentRouteId = id || null;
   for (var r = 0; r < routes.length; r++) {
     var route = routes[r];
-    if (route.id === currentRouteId) continue; // ye route khud skip
+    if (route.id === currentRouteId) continue;
     var ids = (route.shopIds || []).slice();
     var changed = false;
     var newIds = [];
     for (var i = 0; i < ids.length; i++) {
       if (selectedRouteShops.indexOf(ids[i]) !== -1) {
         changed = true;
-        // Ye shopkeeper naye route mein move ho raha hai — remove from here
       } else {
         newIds.push(ids[i]);
       }
@@ -976,15 +962,11 @@ function deleteRoute(id) {
   updateRouteNameField();
 }
 
-// Route shop picker
 function renderRouteShopPicker() {
   var box = document.getElementById('routeShopPicker');
   if (!box) return;
   var currentRouteId = document.getElementById('routeId').value || null;
 
-  // Filter: sirf wahi shopkeepers jo:
-  // 1. Aaj unka pending/partial order hai, YA
-  // 2. Is route mein already selected hain
   var visible = [];
   for (var i = 0; i < shopkeepers.length; i++) {
     var s = shopkeepers[i];
@@ -1003,7 +985,6 @@ function renderRouteShopPicker() {
     var s = visible[i];
     var selected = selectedRouteShops.indexOf(s.id) !== -1;
 
-    // Check karo ke shopkeeper kisi aur route mein hai ya nahi
     var otherRoute = null;
     for (var r = 0; r < routes.length; r++) {
       if (routes[r].id === currentRouteId) continue;
@@ -1027,7 +1008,6 @@ function renderRouteShopPicker() {
   box.innerHTML = html;
 }
 
-// FIX: pura re-render nahi, sirf checkbox ke parent ko update
 function toggleRouteShop(shopId, checked) {
   if (checked) {
     if (selectedRouteShops.indexOf(shopId) === -1) selectedRouteShops.push(shopId);
@@ -1035,7 +1015,6 @@ function toggleRouteShop(shopId, checked) {
     var idx = selectedRouteShops.indexOf(shopId);
     if (idx !== -1) selectedRouteShops.splice(idx, 1);
   }
-  // Sirf wahi card update karo, pura grid re-render nahi
   var items = document.querySelectorAll('.route-shop-item');
   for (var i = 0; i < items.length; i++) {
     var cb = items[i].querySelector('input[type="checkbox"]');
@@ -1048,7 +1027,6 @@ function toggleRouteShop(shopId, checked) {
   }
 }
 
-// Routes list render
 function renderRoutes() {
   var list = document.getElementById('routesList');
   if (!list) return;
@@ -1061,6 +1039,7 @@ function renderRoutes() {
   for (var i = 0; i < routes.length; i++) {
     var r = routes[i];
     var stats = getRouteStats(r);
+    var breakdownHtml = renderRouteProductBreakdown(stats.productBreakdown);
     html += '<div class="route-card" onclick="openRouteModal(\'' + r.id + '\')">' +
       '<div class="route-card-head">' +
         '<div class="route-card-name"><i class="fa fa-route"></i> ' + r.name + '</div>' +
@@ -1069,6 +1048,7 @@ function renderRoutes() {
         '<span class="route-stat"><i class="fa fa-store"></i> ' + (r.shopIds ? r.shopIds.length : 0) + ' shopkeepers</span>' +
         '<span class="route-stat green"><i class="fa fa-weight-hanging"></i> ' + stats.totalQtyText + '</span>' +
       '</div>' +
+      (breakdownHtml ? '<div class="route-breakdown">' + breakdownHtml + '</div>' : '') +
       '<div class="route-actions" onclick="event.stopPropagation()">' +
         '<button class="btn small" onclick="editRoute(\'' + r.id + '\')"><i class="fa fa-edit"></i> Edit</button>' +
         '<button class="btn small danger" onclick="deleteRoute(\'' + r.id + '\')"><i class="fa fa-trash"></i></button>' +
@@ -1080,8 +1060,12 @@ function renderRoutes() {
 
 function getRouteStats(route) {
   var totalKg = 0;
+  var totalMaund = 0;
   var pendingShopCount = 0;
   var shopIds = route.shopIds || [];
+  var productMap = {};
+  var productOrder = [];
+
   for (var i = 0; i < shopIds.length; i++) {
     var sid = shopIds[i];
     var hasPending = false;
@@ -1094,16 +1078,53 @@ function getRouteStats(route) {
         var it = o.items[k];
         var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
         var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+        if (remM <= 0 && remK <= 0) continue;
         totalKg += (remM * 40) + remK;
+        totalMaund += remM;
+
+        var pName = it.product;
+        if (!productMap[pName]) {
+          productMap[pName] = { maund: 0, kgList: [] };
+          productOrder.push(pName);
+        }
+        productMap[pName].maund += remM;
+        if (remK > 0) productMap[pName].kgList.push(remK);
       }
     }
     if (hasPending) pendingShopCount++;
   }
+
+  var breakdown = [];
+  for (var p = 0; p < productOrder.length; p++) {
+    var name = productOrder[p];
+    var data = productMap[name];
+    breakdown.push({ product: name, maund: data.maund, kgList: data.kgList });
+  }
+
   return {
     totalKg: totalKg,
+    totalMaund: totalMaund,
     totalQtyText: totalKgText(totalKg),
-    pendingShopCount: pendingShopCount
+    pendingShopCount: pendingShopCount,
+    productBreakdown: breakdown
   };
+}
+
+function renderRouteProductBreakdown(breakdown) {
+  if (!breakdown || breakdown.length === 0) return '';
+  var html = '';
+  for (var i = 0; i < breakdown.length; i++) {
+    var b = breakdown[i];
+    var parts = [];
+    if (b.maund > 0) parts.push(b.maund + ' maund');
+    for (var k = 0; k < b.kgList.length; k++) parts.push(b.kgList[k] + ' kg');
+    if (parts.length === 0) continue;
+    html += '<div class="route-breakdown-line">' +
+      '<span class="rb-name">📦 ' + b.product + '</span>' +
+      '<span class="rb-qty">' + parts.join(', ') + '</span>' +
+    '</div>';
+  }
+  return html;
 }
 
 function renderDashboardRoutes() {
@@ -1120,6 +1141,7 @@ function renderDashboardRoutes() {
   for (var i = 0; i < routes.length; i++) {
     var r = routes[i];
     var stats = getRouteStats(r);
+    var breakdownHtml = renderRouteProductBreakdown(stats.productBreakdown);
     html += '<div class="route-card" onclick="openRouteModal(\'' + r.id + '\')">' +
       '<div class="route-card-head">' +
         '<div class="route-card-name"><i class="fa fa-route"></i> ' + r.name + '</div>' +
@@ -1130,6 +1152,7 @@ function renderDashboardRoutes() {
         '<span class="route-stat"><i class="fa fa-clock"></i> ' + stats.pendingShopCount + ' pending</span>' +
         '<span class="route-stat green"><i class="fa fa-weight-hanging"></i> ' + stats.totalQtyText + '</span>' +
       '</div>' +
+      (breakdownHtml ? '<div class="route-breakdown">' + breakdownHtml + '</div>' : '') +
     '</div>';
   }
   list.innerHTML = html;
@@ -1145,6 +1168,8 @@ function openRouteModal(routeId) {
   document.getElementById('routeModalTitle').textContent = route.name;
   var body = document.getElementById('routeModalBody');
   var shopIds = route.shopIds || [];
+  var stats = getRouteStats(route);
+
   if (shopIds.length === 0) {
     body.innerHTML = '<div class="empty">Is route mein koi shopkeeper nahi.</div>';
     document.getElementById('routeModal').classList.add('active');
@@ -1202,9 +1227,18 @@ function openRouteModal(routeId) {
     '</div>';
   }
 
-  html += '<div class="load-summary" style="margin-top:18px;margin-bottom:0;">' +
-    '<div><p>Route Ka Total Load</p><div class="big-num">' + totalKgText(grandTotalKg) + '</div></div>' +
-    '<div style="text-align:right;"><p>Shopkeepers</p><div class="big-num">' + shopIds.length + '</div></div>' +
+  var breakdownHtml = renderRouteProductBreakdown(stats.productBreakdown);
+
+  html += '<div class="load-summary route-total-summary" style="margin-top:18px;margin-bottom:0;">' +
+    '<div style="width:100%;">' +
+      '<p>Route Ka Total Load</p>' +
+      '<div class="big-num" style="margin-bottom:12px;">' + totalKgText(grandTotalKg) + '</div>' +
+      (breakdownHtml ? '<div class="route-total-breakdown">' + breakdownHtml + '</div>' : '') +
+    '</div>' +
+    '<div style="text-align:right;border-top:1px solid rgba(255,255,255,0.2);padding-top:12px;width:100%;margin-top:12px;">' +
+      '<p>Shopkeepers</p>' +
+      '<div class="big-num">' + shopIds.length + '</div>' +
+    '</div>' +
   '</div>';
 
   body.innerHTML = html;
