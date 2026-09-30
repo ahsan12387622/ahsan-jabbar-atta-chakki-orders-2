@@ -140,6 +140,15 @@
       </div>
     </div>
 
+    <!-- ===== TODAY'S PENDING SHOPKEEPER ORDER ===== -->
+    <div class="box">
+      <div class="box-head">
+        <h2><i class="fa fa-bell"></i> Today's Pending Shopkeeper Order</h2>
+        <span class="pill" id="pendingShopBadge">0</span>
+      </div>
+      <div id="pendingShopList" class="pending-shop-list"></div>
+    </div>
+
     <div class="box">
       <div class="box-head">
         <h2><i class="fa fa-truck"></i> Aaj Ka Load</h2>
@@ -380,6 +389,15 @@
   </section>
 
 </main>
+</div>
+
+<!-- MODAL: Pending Shopkeeper Orders (Dashboard se) -->
+<div id="pendingShopModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closePendingShopModal()">&times;</span>
+    <h2 id="pendingShopTitle">Shopkeeper Orders</h2>
+    <div id="pendingShopBody"></div>
+  </div>
 </div>
 
 <!-- MODAL: Shop History -->
