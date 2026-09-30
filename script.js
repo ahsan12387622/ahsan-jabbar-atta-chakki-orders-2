@@ -176,6 +176,157 @@ function autoShiftPendingOrders() {
   if (shifted > 0) console.log(shifted + ' pending orders shifted');
 }
 
+// ================== PIN SYSTEM ==================
+function showPinScreen() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appWrapper').style.display = 'none';
+  document.getElementById('pinScreen').style.display = 'flex';
+  document.getElementById('pinUserName').textContent = 'Hi, ' + (currentUser.display || currentUser.user);
+  document.getElementById('pinInput').value = '';
+  document.getElementById('pinError').textContent = '';
+  setTimeout(function() { document.getElementById('pinInput').focus(); }, 200);
+}
+
+function verifyPin() {
+  var entered = document.getElementById('pinInput').value.trim();
+  var err = document.getElementById('pinError');
+  err.textContent = '';
+
+  if (!entered || entered.length !== 4) {
+    err.textContent = 'PIN 4-digit ka hona chahiye';
+    return;
+  }
+  if (!currentUser || !currentUser.pin) {
+    err.textContent = 'PIN set nahi hai. Password se login karein.';
+    return;
+  }
+  if (entered !== String(currentUser.pin)) {
+    err.textContent = 'Ghalat PIN';
+    document.getElementById('pinInput').value = '';
+    return;
+  }
+  // Sahi PIN
+  document.getElementById('pinScreen').style.display = 'none';
+  showApp();
+}
+
+function pinForgot() {
+  if (!confirm('PIN bhool gaye? Aapko password se login karna hoga.')) return;
+  // PIN clear karo (Firebase bhi)
+  if (currentUser && currentUser.pin) {
+    currentUser.pin = '';
+    if (firebaseReady && currentUser.id) {
+      db.collection('users').doc(String(currentUser.id)).update({ pin: '' }).catch(function(e) { console.log(e); });
+    }
+    // Local users array bhi update
+    for (var i = 0; i < users.length; i++) {
+      if (users[i].id === currentUser.id) { users[i].pin = ''; break; }
+    }
+  }
+  // Session clear karo
+  localStorage.setItem('isLoggedIn', 'false');
+  localStorage.removeItem('currentUser');
+  currentUser = null;
+  isLoggedIn = false;
+  document.getElementById('pinScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+}
+
+function promptPinSetup() {
+  // Agar user ka PIN already set hai to skip
+  if (currentUser && currentUser.pin) return;
+  // Banner dikha do
+  document.getElementById('pinSetupBanner').style.display = 'block';
+}
+
+function hidePinBanner() {
+  document.getElementById('pinSetupBanner').style.display = 'none';
+}
+
+function openPinSetup() {
+  document.getElementById('pinSetupTitle').textContent = 'PIN Set Karein';
+  document.getElementById('newPin1').value = '';
+  document.getElementById('newPin2').value = '';
+  document.getElementById('pinSetupError').textContent = '';
+  document.getElementById('pinSetupModal').classList.add('active');
+  setTimeout(function() { document.getElementById('newPin1').focus(); }, 200);
+}
+
+function closePinSetup() {
+  document.getElementById('pinSetupModal').classList.remove('active');
+}
+
+function savePin() {
+  var p1 = document.getElementById('newPin1').value.trim();
+  var p2 = document.getElementById('newPin2').value.trim();
+  var err = document.getElementById('pinSetupError');
+  err.textContent = '';
+
+  if (!p1 || !p2) { err.textContent = 'Dono PIN daalein'; return; }
+  if (p1.length !== 4 || !/^\d{4}$/.test(p1)) { err.textContent = 'PIN 4-digit numbers ka hona chahiye'; return; }
+  if (p1 !== p2) { err.textContent = 'PIN match nahi kar rahe'; return; }
+  if (p1 === '0000') { err.textContent = '0000 PIN nahi rakh sakte'; return; }
+
+  if (!currentUser) { err.textContent = 'User nahi mila'; return; }
+
+  currentUser.pin = p1;
+
+  // localStorage update
+  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+  // Firebase update
+  if (firebaseReady && currentUser.id) {
+    db.collection('users').doc(String(currentUser.id)).update({ pin: p1 }).catch(function(e) {
+      console.log('PIN save error:', e);
+    });
+  }
+  // Local users array update
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].id === currentUser.id) { users[i].pin = p1; break; }
+  }
+
+  closePinSetup();
+  hidePinBanner();
+  renderPinSettings();
+  alert('PIN save ho gaya! Agli baar website kholte hi PIN maanga jayega.');
+}
+
+function removePin() {
+  if (!confirm('PIN remove karne hain? Agli baar seedha dashboard khulega.')) return;
+  if (!currentUser) return;
+
+  currentUser.pin = '';
+  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+  if (firebaseReady && currentUser.id) {
+    db.collection('users').doc(String(currentUser.id)).update({ pin: '' }).catch(function(e) { console.log(e); });
+  }
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].id === currentUser.id) { users[i].pin = ''; break; }
+  }
+
+  renderPinSettings();
+  alert('PIN remove ho gaya!');
+}
+
+function renderPinSettings() {
+  var status = document.getElementById('pinStatusText');
+  var setBtn = document.getElementById('setPinBtn');
+  var remBtn = document.getElementById('removePinBtn');
+  if (!status) return;
+  if (currentUser && currentUser.pin) {
+    status.textContent = '✅ PIN set hai. Website dubara kholne pe PIN maanga jayega.';
+    if (setBtn) setBtn.textContent = 'PIN Change Karein';
+    if (remBtn) remBtn.style.display = 'inline-block';
+  } else {
+    status.textContent = 'PIN abhi set nahi hai.';
+    if (setBtn) setBtn.innerHTML = '<i class="fa fa-plus"></i> Set PIN';
+    if (remBtn) remBtn.style.display = 'none';
+  }
+}
+
 // ================== PERMISSIONS ==================
 function isAdmin() { return currentUser && currentUser.isAdmin === true; }
 function can(permission) {
@@ -200,7 +351,7 @@ function doSignup() {
   db.collection('users').where('user', '==', user).get().then(function(snap) {
     if (!snap.empty) { err.textContent = 'Ye username pehle se mojood hai'; return; }
     var adminUser = {
-      user: user, pass: pass, display: user, isAdmin: true,
+      user: user, pass: pass, display: user, isAdmin: true, pin: '',
       perms: { newOrder: true, deliver: true, shopkeepers: true, history: true, settings: true, routes: true },
       createdAt: new Date().toISOString()
     };
@@ -238,6 +389,10 @@ function doLogin() {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(found));
     showApp();
+    // PIN setup prompt (agar PIN nahi hai to)
+    if (!currentUser.pin) {
+      setTimeout(function() { promptPinSetup(); }, 500);
+    }
   }).catch(function(e) { err.textContent = 'Error: ' + e.message; });
 }
 
@@ -259,6 +414,7 @@ function doLogout() {
   localStorage.setItem('isLoggedIn', 'false');
   localStorage.removeItem('currentUser');
   document.getElementById('appWrapper').style.display = 'none';
+  document.getElementById('pinSetupBanner').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
@@ -281,6 +437,7 @@ function changePassword() {
 
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('pinScreen').style.display = 'none';
   document.getElementById('appWrapper').style.display = 'block';
   renderSidebarNav();
   applySettings();
@@ -291,6 +448,7 @@ function showApp() {
   renderSettings();
   renderRoutes();
   renderRouteShopPicker();
+  renderPinSettings();
   if (isAdmin()) renderUsers();
 }
 
@@ -300,7 +458,6 @@ function manualSync() {
     alert('Firebase load nahi hua. Page refresh karein.');
     return;
   }
-
   var btn = document.getElementById('syncBtn');
   var icon = document.getElementById('syncIcon');
   if (icon) icon.className = 'fa fa-sync-alt fa-spin';
@@ -309,23 +466,31 @@ function manualSync() {
   loadAllData(function() {
     autoShiftPendingOrders();
 
+    // Current user refresh karo (PIN update ho sakta hai)
+    if (currentUser) {
+      for (var i = 0; i < users.length; i++) {
+        if (users[i].id === currentUser.id) {
+          currentUser = users[i];
+          localStorage.setItem('currentUser', JSON.stringify(currentUser));
+          break;
+        }
+      }
+    }
+
     renderDashboard();
     renderShopkeepers();
     renderRoutes();
     renderHistory();
     renderSettings();
     renderRouteShopPicker();
+    renderPinSettings();
     if (isAdmin()) renderUsers();
     if (can('newOrder')) prepareOrderForm();
 
     var ordPage = document.getElementById('orders');
-    if (ordPage && ordPage.classList.contains('active')) {
-      renderOrdersPage();
-    }
+    if (ordPage && ordPage.classList.contains('active')) renderOrdersPage();
     var delPage = document.getElementById('delivery');
-    if (delPage && delPage.classList.contains('active')) {
-      renderDelivery();
-    }
+    if (delPage && delPage.classList.contains('active')) renderDelivery();
 
     if (icon) icon.className = 'fa fa-sync-alt';
     if (btn) btn.disabled = false;
@@ -462,12 +627,9 @@ function showPage(pageId, btn) {
   }
   if (pageId === 'delivery') renderDelivery();
   if (pageId === 'history') renderHistory();
-  if (pageId === 'settings') renderSettings();
+  if (pageId === 'settings') { renderSettings(); renderPinSettings(); }
   if (pageId === 'users') renderUsers();
-  if (pageId === 'routes') {
-    renderRoutes();
-    renderRouteShopPicker();
-  }
+  if (pageId === 'routes') { renderRoutes(); renderRouteShopPicker(); }
   window.scrollTo(0, 0);
 }
 
@@ -481,12 +643,6 @@ function applySettings() {
   var body = document.body;
   body.classList.remove('pc-mode');
   body.classList.add('mobile-mode');
-}
-function setMode(m) {
-  // Mode change hata diya
-}
-function toggleMode() {
-  // Mode toggle hata diya
 }
 function saveBizName() {
   var el = document.getElementById('setBizName');
@@ -561,7 +717,7 @@ function saveUser() {
     }
     alert('User save!'); resetUserForm(); renderUsers(); return;
   }
-  var newUser = { user: user, pass: pass, display: display || user, isAdmin: false, perms: perms, createdAt: new Date().toISOString() };
+  var newUser = { user: user, pass: pass, display: display || user, isAdmin: false, perms: perms, pin: '', createdAt: new Date().toISOString() };
   if (firebaseReady) {
     db.collection('users').add(newUser).then(function(ref) {
       newUser.id = ref.id;
@@ -627,6 +783,7 @@ function renderUsers() {
   for (var i = 0; i < users.length; i++) {
     var u = users[i];
     var badge = u.isAdmin ? '<span class="badge admin-badge">ADMIN</span>' : '<span class="badge staff-badge">STAFF</span>';
+    var pinBadge = u.pin ? ' <span class="badge delivered" style="background:#e0e7ff;color:#3730a3;">🔒 PIN</span>' : '';
     var chips = '';
     var permsList = [
       { k: 'newOrder', label: 'Naya Order' }, { k: 'deliver', label: 'Deliver' },
@@ -644,7 +801,7 @@ function renderUsers() {
     }
     html += '<div class="item user-item"><div class="item-info">' +
       '<h4><i class="fa fa-user-circle"></i> ' + (u.display || u.user) + '</h4>' +
-      '<p><b>@' + u.user + '</b></p>' + badge +
+      '<p><b>@' + u.user + '</b></p>' + badge + pinBadge +
       '<div class="perm-chips">' + chips + '</div></div>' +
       '<div class="item-actions">' + actions + '</div></div>';
   }
@@ -1109,7 +1266,6 @@ function generateRouteName() {
   while (names['Route ' + nextNum]) nextNum++;
   return 'Route ' + nextNum;
 }
-
 function updateRouteNameField() {
   var el = document.getElementById('routeName');
   if (!el) return;
@@ -1121,7 +1277,6 @@ function updateRouteNameField() {
   }
   el.value = generateRouteName();
 }
-
 function shopHasTodayPendingOrder(shopId) {
   var today = todayStr();
   for (var i = 0; i < orders.length; i++) {
@@ -1133,7 +1288,6 @@ function shopHasTodayPendingOrder(shopId) {
   }
   return false;
 }
-
 function saveRoute() {
   if (!can('routes')) { alert('Permission nahi hai'); return; }
   var id = document.getElementById('routeId').value;
@@ -1149,11 +1303,8 @@ function saveRoute() {
     var changed = false;
     var newIds = [];
     for (var i = 0; i < ids.length; i++) {
-      if (selectedRouteShops.indexOf(ids[i]) !== -1) {
-        changed = true;
-      } else {
-        newIds.push(ids[i]);
-      }
+      if (selectedRouteShops.indexOf(ids[i]) !== -1) changed = true;
+      else newIds.push(ids[i]);
     }
     if (changed) {
       route.shopIds = newIds;
@@ -1192,7 +1343,6 @@ function saveRoute() {
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
 }
-
 function resetRouteForm() {
   document.getElementById('routeId').value = '';
   selectedRouteShops = [];
@@ -1200,7 +1350,6 @@ function resetRouteForm() {
   updateRouteNameField();
   renderRouteShopPicker();
 }
-
 function editRoute(id) {
   if (!can('routes')) { alert('Permission nahi hai'); return; }
   for (var i = 0; i < routes.length; i++) {
@@ -1215,7 +1364,6 @@ function editRoute(id) {
     }
   }
 }
-
 function deleteRoute(id) {
   if (!can('routes')) { alert('Permission nahi hai'); return; }
   if (!confirm('Pakka route delete?')) return;
@@ -1228,7 +1376,6 @@ function deleteRoute(id) {
   renderRoutes(); renderDashboardRoutes();
   updateRouteNameField();
 }
-
 function renderRouteShopPicker() {
   var box = document.getElementById('routeShopPicker');
   if (!box) return;
@@ -1276,7 +1423,6 @@ function renderRouteShopPicker() {
   }
   box.innerHTML = html;
 }
-
 function getShopOrderSummaryText(shopId) {
   var today = todayStr();
   var productMap = {};
@@ -1312,7 +1458,6 @@ function getShopOrderSummaryText(shopId) {
   }
   return parts.join(' • ');
 }
-
 function toggleRouteShop(shopId, checked) {
   if (checked) {
     if (selectedRouteShops.indexOf(shopId) === -1) selectedRouteShops.push(shopId);
@@ -1331,7 +1476,6 @@ function toggleRouteShop(shopId, checked) {
     }
   }
 }
-
 function renderRoutes() {
   var list = document.getElementById('routesList');
   if (!list) return;
@@ -1362,7 +1506,6 @@ function renderRoutes() {
   }
   list.innerHTML = html;
 }
-
 function getRouteStats(route) {
   var totalKg = 0;
   var totalMaund = 0;
@@ -1414,7 +1557,6 @@ function getRouteStats(route) {
     productBreakdown: breakdown
   };
 }
-
 function renderRouteProductBreakdown(breakdown) {
   if (!breakdown || breakdown.length === 0) return '';
   var html = '';
@@ -1431,7 +1573,6 @@ function renderRouteProductBreakdown(breakdown) {
   }
   return html;
 }
-
 function renderDashboardRoutes() {
   var list = document.getElementById('dashboardRoutesList');
   var badge = document.getElementById('routesBadge');
@@ -1440,9 +1581,7 @@ function renderDashboardRoutes() {
   var visibleRoutes = [];
   for (var i = 0; i < routes.length; i++) {
     var stats = getRouteStats(routes[i]);
-    if (stats.pendingShopCount > 0) {
-      visibleRoutes.push({ route: routes[i], stats: stats });
-    }
+    if (stats.pendingShopCount > 0) visibleRoutes.push({ route: routes[i], stats: stats });
   }
 
   if (badge) badge.textContent = visibleRoutes.length;
@@ -1476,7 +1615,6 @@ function renderDashboardRoutes() {
   }
   list.innerHTML = html;
 }
-
 function openRouteModal(routeId) {
   var route = null;
   for (var i = 0; i < routes.length; i++) {
@@ -1567,7 +1705,6 @@ function openRouteModal(routeId) {
   body.innerHTML = html;
   document.getElementById('routeModal').classList.add('active');
 }
-
 function closeRouteModal() {
   document.getElementById('routeModal').classList.remove('active');
 }
@@ -1582,7 +1719,6 @@ function prepareOrderForm() {
   var notesEl = document.getElementById('orderNotes');
   if (notesEl) notesEl.value = '';
 }
-
 function showNewOrderStep(step) {
   var step1 = document.getElementById('shopPickerStep');
   var step2 = document.getElementById('productPickerStep');
@@ -1612,7 +1748,6 @@ function showNewOrderStep(step) {
   }
   window.scrollTo(0, 0);
 }
-
 function renderShopPickerGrid() {
   var grid = document.getElementById('shopPickerGrid');
   if (!grid) return;
@@ -1632,7 +1767,6 @@ function renderShopPickerGrid() {
   }
   grid.innerHTML = html;
 }
-
 function selectShopkeeperForOrder(shopId) {
   selectedShopIdForOrder = shopId;
   currentOrderItems = [];
@@ -1645,7 +1779,6 @@ function selectShopkeeperForOrder(shopId) {
   document.getElementById('selectedShopMobile').innerHTML = '<i class="fa fa-phone"></i> ' + shop.mobile;
   showNewOrderStep(2);
 }
-
 function changeShopkeeper() {
   if (currentOrderItems.length > 0) {
     if (!confirm('Shopkeeper change karne se add kiye gaye products hat jayenge. Continue?')) return;
@@ -1654,7 +1787,6 @@ function changeShopkeeper() {
   currentOrderItems = [];
   showNewOrderStep(1);
 }
-
 function renderProductPickerGrid() {
   var grid = document.getElementById('productPickerGrid');
   if (!grid) return;
@@ -1671,9 +1803,7 @@ function renderProductPickerGrid() {
     }
     var added = count > 0;
     var badgeHtml = '';
-    if (added) {
-      badgeHtml = '<span class="pp-count-badge">' + count + '</span>';
-    }
+    if (added) badgeHtml = '<span class="pp-count-badge">' + count + '</span>';
     html += '<div class="product-picker-card' + (added ? ' added' : '') + '" onclick="selectProductForOrder(\'' + p.replace(/'/g, "\\'") + '\')">' +
       badgeHtml +
       '<div class="pp-icon"><i class="fa fa-box"></i></div>' +
@@ -1682,20 +1812,13 @@ function renderProductPickerGrid() {
   }
   grid.innerHTML = html;
 }
-
 function selectProductForOrder(productName) {
   var existingIndexes = [];
   for (var i = 0; i < currentOrderItems.length; i++) {
     if (currentOrderItems[i].product === productName) existingIndexes.push(i);
   }
-
   if (existingIndexes.length > 0) {
-    var choice = confirm(
-      productName + ' pehle se ' + existingIndexes.length + ' baar add hai.\n\n' +
-      'OK = NAYA ADD karein (nayi entry)\n' +
-      'Cancel = EDIT karein (purani entry badlein)'
-    );
-
+    var choice = confirm(productName + ' pehle se ' + existingIndexes.length + ' baar add hai.\n\nOK = NAYA ADD karein\nCancel = EDIT karein');
     if (choice) {
       selectedProductForOrder = productName;
       selectedEditIndex = -1;
@@ -1705,11 +1828,8 @@ function selectProductForOrder(productName) {
       updateQtyPreview();
       showNewOrderStep(3);
     } else {
-      if (existingIndexes.length === 1) {
-        editAddedProduct(existingIndexes[0]);
-      } else {
-        alert('Is product ki ' + existingIndexes.length + ' entries hain. Neeche "Add Ho Chuke Products" list mein se edit karein.');
-      }
+      if (existingIndexes.length === 1) editAddedProduct(existingIndexes[0]);
+      else alert('Is product ki ' + existingIndexes.length + ' entries hain. Neeche list se edit karein.');
     }
   } else {
     selectedProductForOrder = productName;
@@ -1721,26 +1841,22 @@ function selectProductForOrder(productName) {
     showNewOrderStep(3);
   }
 }
-
 function updateQtyPreview() {
   var m = parseInt(document.getElementById('qtyMaund').value) || 0;
   var k = parseInt(document.getElementById('qtyKg').value) || 0;
   var totalKg = (m * 40) + k;
   document.getElementById('qtyPreviewText').textContent = totalKgText(totalKg);
 }
-
 function cancelQty() {
   selectedProductForOrder = null;
   selectedEditIndex = -1;
   showNewOrderStep(2);
 }
-
 function confirmQtyAdd() {
   var m = parseInt(document.getElementById('qtyMaund').value) || 0;
   var k = parseInt(document.getElementById('qtyKg').value) || 0;
   if (m === 0 && k === 0) { alert('Kam az kam maund ya kg daalein!'); return; }
-  if (k > 39) { alert('Kg 39 se zyada nahi ho sakta. Maund use karein.'); return; }
-
+  if (k > 39) { alert('Kg 39 se zyada nahi ho sakta.'); return; }
   if (selectedEditIndex >= 0 && selectedEditIndex < currentOrderItems.length) {
     currentOrderItems[selectedEditIndex].maund = m;
     currentOrderItems[selectedEditIndex].kg = k;
@@ -1751,16 +1867,12 @@ function confirmQtyAdd() {
   selectedEditIndex = -1;
   showNewOrderStep(2);
 }
-
 function renderAddedProducts() {
   var box = document.getElementById('addedProductsBox');
   var list = document.getElementById('addedProductsList');
   var count = document.getElementById('addedProductsCount');
   if (!box || !list) return;
-  if (currentOrderItems.length === 0) {
-    box.style.display = 'none';
-    return;
-  }
+  if (currentOrderItems.length === 0) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   if (count) count.textContent = currentOrderItems.length;
   var html = '';
@@ -1777,7 +1889,6 @@ function renderAddedProducts() {
   }
   list.innerHTML = html;
 }
-
 function editAddedProduct(idx) {
   var it = currentOrderItems[idx];
   selectedProductForOrder = it.product;
@@ -1788,13 +1899,11 @@ function editAddedProduct(idx) {
   updateQtyPreview();
   showNewOrderStep(3);
 }
-
 function removeAddedProduct(idx) {
   currentOrderItems.splice(idx, 1);
   renderAddedProducts();
   renderProductPickerGrid();
 }
-
 function saveMultiOrder() {
   if (!can('newOrder')) { alert('Permission nahi hai'); return; }
   if (!selectedShopIdForOrder) { alert('Pehle shopkeeper chunein!'); return; }
@@ -1828,7 +1937,6 @@ function saveMultiOrder() {
     }).catch(function(e) { alert('Error: ' + e.message); });
   }
 }
-
 function newOrderBack() {
   var step3 = document.getElementById('quantityStep');
   if (step3 && step3.style.display === 'block') { cancelQty(); return; }
@@ -1951,8 +2059,7 @@ function openDeliverModal(orderId, product) {
   var html = '';
   for (var i = 0; i < pending.length; i++) {
     var p = pending[i];
-    var totalText = qtyText(p.maund, p.kg);
-    html += '<div class="deliver-row"><div class="deliver-row-head">Baqi: ' + totalText + '</div>' +
+    html += '<div class="deliver-row"><div class="deliver-row-head">Baqi: ' + qtyText(p.maund, p.kg) + '</div>' +
       '<div class="deliver-row-sub">Kitna deliver? (khaali chhoro to poora)</div>' +
       '<div class="deliver-qty-row">' +
       '<div class="form-group"><label>Maund</label><input type="number" class="deliver-maund" min="0" max="' + p.maund + '" placeholder="' + p.maund + '" data-idx="' + p.index + '" /></div>' +
@@ -2024,21 +2131,13 @@ function markAllDelivered() {
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
   alert('Poora deliver ho gaya!');
 }
-
 function confirmDeliverySmart() {
-  if (currentCombinedProduct) {
-    confirmCombinedDelivery();
-  } else {
-    confirmDelivery();
-  }
+  if (currentCombinedProduct) confirmCombinedDelivery();
+  else confirmDelivery();
 }
-
 function markAllDeliveredSmart() {
-  if (currentCombinedProduct) {
-    markAllCombinedDelivered();
-  } else {
-    markAllDelivered();
-  }
+  if (currentCombinedProduct) markAllCombinedDelivered();
+  else markAllDelivered();
 }
 
 // ================== DELIVERY PAGE ==================
@@ -2200,21 +2299,28 @@ window.addEventListener('load', function() {
   initFirebase(function() {
     loadAllData(function() {
       autoShiftPendingOrders();
+
       var loggedIn = localStorage.getItem('isLoggedIn') === 'true';
       var cachedUser = JSON.parse(localStorage.getItem('currentUser'));
+
       if (loggedIn && cachedUser) {
-        var stillExists = false;
+        var found = null;
         for (var i = 0; i < users.length; i++) {
-          if (users[i].id === cachedUser.id) {
-            stillExists = true;
-            currentUser = users[i];
-            break;
-          }
+          if (users[i].id === cachedUser.id) { found = users[i]; break; }
         }
-        if (stillExists) {
+        if (found) {
+          currentUser = found;
           isLoggedIn = true;
-          showApp();
-          return;
+
+          // PIN check — agar PIN set hai to PIN screen dikhao
+          if (currentUser.pin && String(currentUser.pin).length === 4) {
+            showPinScreen();
+            return;
+          } else {
+            // PIN nahi hai — seedha dashboard
+            showApp();
+            return;
+          }
         }
       }
       isLoggedIn = false;
@@ -2222,6 +2328,7 @@ window.addEventListener('load', function() {
       localStorage.removeItem('currentUser');
       document.getElementById('loginScreen').style.display = 'flex';
       document.getElementById('appWrapper').style.display = 'none';
+      document.getElementById('pinScreen').style.display = 'none';
     });
   });
 });
