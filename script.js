@@ -46,6 +46,8 @@ var isLoggedIn = false;
 var currentUser = null;
 var currentDeliverOrderId = null;
 var currentDeliverProduct = null;
+var currentCombinedProduct = null;
+var currentCombinedOrderIds = [];
 
 var selectedShopIdForOrder = null;
 var selectedProductForOrder = null;
@@ -656,6 +658,7 @@ function renderPendingShopkeeperList() {
   list.innerHTML = html;
 }
 
+// ============ UPDATED: Combined product wise pending shop modal ============
 function openPendingShopModal(shopId) {
   var today = todayStr();
   var shopName = 'Unknown', shopMobile = '';
@@ -664,52 +667,237 @@ function openPendingShopModal(shopId) {
   }
   document.getElementById('pendingShopTitle').textContent = shopName + ' - Aaj Ke Orders';
   document.getElementById('pendingShopModal').setAttribute('data-shop-id', shopId);
+
   var sOrders = [];
   for (var i = 0; i < orders.length; i++) {
     var o = orders[i];
     if (o.shopId == shopId && o.date === today && (o.status === 'Pending' || o.status === 'Partial')) sOrders.push(o);
   }
+
   var body = document.getElementById('pendingShopBody');
   if (sOrders.length === 0) {
     body.innerHTML = '<div class="empty">Koi pending order nahi.</div>';
-  } else {
-    var html = '';
-    for (var i = 0; i < sOrders.length; i++) {
-      var o = sOrders[i];
-      var linesHtml = '';
-      for (var j = 0; j < o.items.length; j++) {
-        var it = o.items[j];
+    document.getElementById('pendingShopModal').classList.add('active');
+    return;
+  }
+
+  // Product wise combine karo
+  var productMap = {};
+  var productOrder = [];
+
+  for (var i = 0; i < sOrders.length; i++) {
+    var o = sOrders[i];
+    for (var j = 0; j < o.items.length; j++) {
+      var it = o.items[j];
+      var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+      var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+      if (remM <= 0 && remK <= 0) continue;
+
+      var pName = it.product;
+      if (!productMap[pName]) {
+        productMap[pName] = { maund: 0, kg: 0, orderIds: [] };
+        productOrder.push(pName);
+      }
+      productMap[pName].maund += remM;
+      productMap[pName].kg += remK;
+      if (productMap[pName].orderIds.indexOf(o.id) === -1) {
+        productMap[pName].orderIds.push(o.id);
+      }
+    }
+  }
+
+  var grandTotalKg = 0;
+  for (var p = 0; p < productOrder.length; p++) {
+    var pm = productMap[productOrder[p]];
+    grandTotalKg += (pm.maund * 40) + pm.kg;
+  }
+
+  var linesHtml = '';
+  for (var p = 0; p < productOrder.length; p++) {
+    var pName = productOrder[p];
+    var pm = productMap[pName];
+    var qtyStr = qtyText(pm.maund, pm.kg);
+
+    var action = '';
+    if (can('deliver')) {
+      var orderIdsStr = JSON.stringify(pm.orderIds);
+      var safeProductName = pName.replace(/'/g, "\\'").replace(/"/g, '\\"');
+      action = '<button class="btn small success" onclick=\'openCombinedDeliverModal("' + safeProductName + '", ' + orderIdsStr + ')\'><i class="fa fa-check"></i> Delivered</button>';
+    }
+
+    linesHtml += '<div class="product-line"><div class="product-line-info">' +
+      '<span class="p-name">📦 ' + pName + '</span>' +
+      '<span class="p-qty">' + qtyStr + '</span>' +
+      '</div>' + action + '</div>';
+  }
+
+  var html = '<div class="shop-group"><div class="shop-group-head">' +
+    '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
+    '<p><i class="fa fa-phone"></i> ' + shopMobile + ' • ' + formatDate(today) + '</p></div>' +
+    '<span class="shop-group-total">' + totalKgText(grandTotalKg) + '</span></div>' +
+    linesHtml + '</div>';
+
+  body.innerHTML = html;
+  document.getElementById('pendingShopModal').classList.add('active');
+}
+
+// Combined product deliver modal
+function openCombinedDeliverModal(productName, orderIds) {
+  if (!can('deliver')) { alert('Permission nahi hai'); return; }
+  currentCombinedProduct = productName;
+  currentCombinedOrderIds = orderIds || [];
+
+  var totalM = 0, totalK = 0;
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    var oid = currentCombinedOrderIds[i];
+    for (var j = 0; j < orders.length; j++) {
+      var o = orders[j];
+      if (o.id != oid) continue;
+      for (var k = 0; k < o.items.length; k++) {
+        var it = o.items[k];
+        if (it.product !== productName) continue;
         var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
         var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
         if (remM <= 0 && remK <= 0) continue;
-        var deliveredText = '';
-        if (it.deliveredMaund > 0 || it.deliveredKg > 0) {
-          deliveredText = '<div class="p-delivered">✓ ' + qtyText(it.deliveredMaund, it.deliveredKg) + ' deliver ho chuka</div>';
-        }
-        var action = can('deliver')
-          ? '<button class="btn small success" onclick="openDeliverModal(\'' + o.id + '\', \'' + it.product.replace(/'/g, "\\'") + '\')"><i class="fa fa-check"></i> Delivered</button>'
-          : '';
-        linesHtml += '<div class="product-line"><div class="product-line-info">' +
-          '<span class="p-name">📦 ' + it.product + '</span>' +
-          '<span class="p-qty">' + qtyText(remM, remK) + '</span>' + deliveredText +
-          '</div>' + action + '</div>';
+        totalM += remM;
+        totalK += remK;
       }
-      if (linesHtml === '') continue;
-      var totalKg = 0;
-      for (var j = 0; j < o.items.length; j++) {
-        var it = o.items[j];
+    }
+  }
+
+  var shopName = '';
+  var shopIdForName = null;
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    for (var j = 0; j < orders.length; j++) {
+      if (orders[j].id == currentCombinedOrderIds[i]) {
+        shopIdForName = orders[j].shopId;
+        break;
+      }
+    }
+    if (shopIdForName) break;
+  }
+  for (var i = 0; i < shopkeepers.length; i++) {
+    if (shopkeepers[i].id == shopIdForName) shopName = shopkeepers[i].name;
+  }
+
+  document.getElementById('deliverTitle').textContent = productName + ' - ' + shopName;
+  var body = document.getElementById('deliverBody');
+  var html = '<div class="deliver-row">' +
+    '<div class="deliver-row-head">Baqi: ' + qtyText(totalM, totalK) + '</div>' +
+    '<div class="deliver-row-sub">Kitna deliver? (khaali chhoro to poora)</div>' +
+    '<div class="deliver-qty-row">' +
+      '<div class="form-group"><label>Maund</label>' +
+        '<input type="number" class="combined-maund" min="0" max="' + totalM + '" placeholder="' + totalM + '" />' +
+      '</div>' +
+      '<div class="form-group"><label>Kg</label>' +
+        '<input type="number" class="combined-kg" min="0" max="' + totalK + '" placeholder="' + totalK + '" />' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+  body.innerHTML = html;
+  document.getElementById('deliverModal').classList.add('active');
+}
+
+function confirmCombinedDelivery() {
+  if (!can('deliver')) return;
+  if (!currentCombinedProduct) return;
+
+  var mInput = document.querySelector('.combined-maund');
+  var kInput = document.querySelector('.combined-kg');
+  var dm = mInput ? parseInt(mInput.value) : NaN;
+  var dk = kInput ? parseInt(kInput.value) : NaN;
+
+  var totalM = 0, totalK = 0;
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    var oid = currentCombinedOrderIds[i];
+    for (var j = 0; j < orders.length; j++) {
+      var o = orders[j];
+      if (o.id != oid) continue;
+      for (var k = 0; k < o.items.length; k++) {
+        var it = o.items[k];
+        if (it.product !== currentCombinedProduct) continue;
         var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
         var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
-        totalKg += (remM * 40) + remK;
+        if (remM <= 0 && remK <= 0) continue;
+        totalM += remM;
+        totalK += remK;
       }
-      html += '<div class="shop-group"><div class="shop-group-head">' +
-        '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
-        '<p><i class="fa fa-phone"></i> ' + shopMobile + ' • ' + formatDate(o.date) + '</p></div>' +
-        '<span class="shop-group-total">' + totalKgText(totalKg) + '</span></div>' + linesHtml + '</div>';
     }
-    body.innerHTML = html || '<div class="empty">Koi pending order nahi.</div>';
   }
-  document.getElementById('pendingShopModal').classList.add('active');
+
+  if (isNaN(dm)) dm = totalM;
+  if (isNaN(dk)) dk = totalK;
+  if (dm > totalM) dm = totalM;
+  if (dk > totalK) dk = totalK;
+  if (dm < 0) dm = 0;
+  if (dk < 0) dk = 0;
+
+  var remainingM = dm, remainingK = dk;
+
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    if (remainingM <= 0 && remainingK <= 0) break;
+    var oid = currentCombinedOrderIds[i];
+    var order = null;
+    for (var j = 0; j < orders.length; j++) {
+      if (orders[j].id == oid) { order = orders[j]; break; }
+    }
+    if (!order) continue;
+
+    for (var k = 0; k < order.items.length; k++) {
+      if (remainingM <= 0 && remainingK <= 0) break;
+      var it = order.items[k];
+      if (it.product !== currentCombinedProduct) continue;
+      var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
+      var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
+      if (remM <= 0 && remK <= 0) continue;
+
+      var giveM = Math.min(remM, remainingM);
+      var giveK = Math.min(remK, remainingK);
+
+      it.deliveredMaund = (parseInt(it.deliveredMaund) || 0) + giveM;
+      it.deliveredKg = (parseInt(it.deliveredKg) || 0) + giveK;
+      remainingM -= giveM;
+      remainingK -= giveK;
+    }
+
+    order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
+    saveToFirebase('orders', order.id, order);
+  }
+
+  closeDeliverModal();
+  renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+  var pm = document.getElementById('pendingShopModal');
+  if (pm && pm.classList.contains('active')) refreshPendingShopModal();
+  alert('Deliver ho gaya!');
+}
+
+function markAllCombinedDelivered() {
+  if (!can('deliver')) return;
+  if (!currentCombinedProduct) return;
+
+  for (var i = 0; i < currentCombinedOrderIds.length; i++) {
+    var oid = currentCombinedOrderIds[i];
+    var order = null;
+    for (var j = 0; j < orders.length; j++) {
+      if (orders[j].id == oid) { order = orders[j]; break; }
+    }
+    if (!order) continue;
+
+    for (var k = 0; k < order.items.length; k++) {
+      var it = order.items[k];
+      if (it.product !== currentCombinedProduct) continue;
+      it.deliveredMaund = parseInt(it.maund) || 0;
+      it.deliveredKg = parseInt(it.kg) || 0;
+    }
+    order.status = checkOrderDelivered(order) ? 'Delivered' : 'Partial';
+    saveToFirebase('orders', order.id, order);
+  }
+
+  closeDeliverModal();
+  renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
+  var pm = document.getElementById('pendingShopModal');
+  if (pm && pm.classList.contains('active')) refreshPendingShopModal();
+  alert('Poora deliver ho gaya!');
 }
 
 function closePendingShopModal() {
@@ -873,7 +1061,6 @@ function saveRoute() {
   if (!name) name = generateRouteName();
   if (selectedRouteShops.length === 0) { alert('Kam az kam ek shopkeeper chunein!'); return; }
 
-  // Auto-transfer: agar koi selected shopkeeper kisi aur route mein hai to usse hata do
   var currentRouteId = id || null;
   for (var r = 0; r < routes.length; r++) {
     var route = routes[r];
@@ -1610,6 +1797,8 @@ function closeDeliverModal() {
   document.getElementById('deliverModal').classList.remove('active');
   currentDeliverOrderId = null;
   currentDeliverProduct = null;
+  currentCombinedProduct = null;
+  currentCombinedOrderIds = [];
 }
 function confirmDelivery() {
   if (!can('deliver')) return;
@@ -1663,6 +1852,23 @@ function markAllDelivered() {
   var pm = document.getElementById('pendingShopModal');
   if (pm && pm.classList.contains('active')) refreshPendingShopModal();
   alert('Poora deliver ho gaya!');
+}
+
+// Smart confirm — combined mode check
+function confirmDeliverySmart() {
+  if (currentCombinedProduct) {
+    confirmCombinedDelivery();
+  } else {
+    confirmDelivery();
+  }
+}
+
+function markAllDeliveredSmart() {
+  if (currentCombinedProduct) {
+    markAllCombinedDelivered();
+  } else {
+    markAllDelivered();
+  }
 }
 
 // ================== DELIVERY PAGE ==================
