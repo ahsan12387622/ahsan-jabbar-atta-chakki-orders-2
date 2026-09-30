@@ -15,7 +15,6 @@ var firebaseLoaded = false;
 function initFirebase(callback) {
   if (firebaseLoaded) { if (callback) callback(); return; }
   firebaseLoaded = true;
-
   var script1 = document.createElement('script');
   script1.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
   script1.onload = function() {
@@ -44,11 +43,8 @@ var settings = { bizName: 'Atta Chakki', mode: 'auto' };
 var users = [];
 var isLoggedIn = false;
 var currentUser = null;
-
 var currentDeliverOrderId = null;
 var currentDeliverProduct = null;
-
-// New Order (2-step) ke liye
 var selectedShopIdForOrder = null;
 
 // ================== FIREBASE SYNC ==================
@@ -60,12 +56,14 @@ function loadAllData(callback) {
   db.collection('shopkeepers').get().then(function(snap) {
     shopkeepers = [];
     snap.forEach(function(doc) { var d = doc.data(); d.id = doc.id; shopkeepers.push(d); });
+    console.log('Shopkeepers loaded:', shopkeepers.length);
     done();
   }).catch(function(e) { console.log(e); done(); });
 
   db.collection('orders').get().then(function(snap) {
     orders = [];
     snap.forEach(function(doc) { var d = doc.data(); d.id = doc.id; orders.push(d); });
+    console.log('Orders loaded:', orders.length);
     done();
   }).catch(function(e) { console.log(e); done(); });
 
@@ -105,7 +103,6 @@ function saveSettingsFirebase() {
 }
 
 // ================== AUTO DATE SHIFT ==================
-// Jo pending orders purani date ke hain, unhe aaj ki date pe shift kar do
 function autoShiftPendingOrders() {
   if (!firebaseReady) return;
   var today = todayStr();
@@ -119,9 +116,7 @@ function autoShiftPendingOrders() {
       shifted++;
     }
   }
-  if (shifted > 0) {
-    console.log(shifted + ' pending orders aaj ki date pe shift ho gaye');
-  }
+  if (shifted > 0) console.log(shifted + ' pending orders shifted to today');
 }
 
 // ================== PERMISSIONS ==================
@@ -140,24 +135,15 @@ function doSignup() {
   var pass2 = document.getElementById('signupPass2').value;
   var err = document.getElementById('loginError');
   err.textContent = '';
-
   if (!user || !pass) { err.textContent = 'Username aur password daalein'; return; }
   if (pass.length < 4) { err.textContent = 'Password kam az kam 4 characters'; return; }
   if (pass !== pass2) { err.textContent = 'Password match nahi kar rahe'; return; }
-  if (!firebaseReady) { err.textContent = 'Firebase load nahi hua. Page refresh karein.'; return; }
-
+  if (!firebaseReady) { err.textContent = 'Firebase load nahi hua.'; return; }
   err.textContent = 'Account bana rahe hain...';
-
   db.collection('users').where('user', '==', user).get().then(function(snap) {
-    if (!snap.empty) {
-      err.textContent = 'Ye username pehle se mojood hai';
-      return;
-    }
+    if (!snap.empty) { err.textContent = 'Ye username pehle se mojood hai'; return; }
     var adminUser = {
-      user: user,
-      pass: pass,
-      display: user,
-      isAdmin: true,
+      user: user, pass: pass, display: user, isAdmin: true,
       perms: { newOrder: true, deliver: true, shopkeepers: true, history: true, settings: true },
       createdAt: new Date().toISOString()
     };
@@ -167,15 +153,8 @@ function doSignup() {
       hideSignup();
       document.getElementById('loginUser').value = user;
       document.getElementById('loginPass').value = '';
-      document.getElementById('loginPass').focus();
-    }).catch(function(e) {
-      console.log('Signup add error:', e);
-      err.textContent = 'Error: ' + e.message;
-    });
-  }).catch(function(e) {
-    console.log('Signup check error:', e);
-    err.textContent = 'Error: ' + e.message;
-  });
+    }).catch(function(e) { err.textContent = 'Error: ' + e.message; });
+  }).catch(function(e) { err.textContent = 'Error: ' + e.message; });
 }
 
 // ================== LOGIN ==================
@@ -184,12 +163,9 @@ function doLogin() {
   var pass = document.getElementById('loginPass').value;
   var err = document.getElementById('loginError');
   err.textContent = '';
-
   if (!user || !pass) { err.textContent = 'Username aur password daalein'; return; }
-  if (!firebaseReady) { err.textContent = 'Firebase load nahi hua. Refresh karein.'; return; }
-
+  if (!firebaseReady) { err.textContent = 'Firebase load nahi hua.'; return; }
   err.textContent = 'Check kar rahe hain...';
-
   db.collection('users').where('user', '==', user).get().then(function(snap) {
     if (snap.empty) { err.textContent = 'Ghalat username ya password'; return; }
     var found = null;
@@ -205,10 +181,7 @@ function doLogin() {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(found));
     showApp();
-  }).catch(function(e) {
-    console.log('Login error:', e);
-    err.textContent = 'Error: ' + e.message;
-  });
+  }).catch(function(e) { err.textContent = 'Error: ' + e.message; });
 }
 
 function showSignup() {
@@ -318,8 +291,7 @@ function totalKgText(totalKg) {
   return qtyText(m, k);
 }
 function productQtySummary(items) {
-  var totalMaund = 0;
-  var kgList = [];
+  var totalMaund = 0, kgList = [];
   for (var i = 0; i < items.length; i++) {
     var m = parseInt(items[i].maund) || 0;
     var k = parseInt(items[i].kg) || 0;
@@ -341,8 +313,7 @@ function getPendingItemsForProduct(order, product) {
     var k = parseInt(it.kg) || 0;
     var dm = parseInt(it.deliveredMaund) || 0;
     var dk = parseInt(it.deliveredKg) || 0;
-    var remM = m - dm;
-    var remK = k - dk;
+    var remM = m - dm, remK = k - dk;
     if (remM > 0 || remK > 0) pending.push({ item: it, index: i, maund: remM, kg: remK });
   }
   return pending;
@@ -366,19 +337,15 @@ function showPage(pageId, btn) {
   if (pageId === 'history' && !can('history')) { alert('Permission nahi hai'); return; }
   if (pageId === 'settings' && !can('settings')) { alert('Permission nahi hai'); return; }
   if (pageId === 'users' && !isAdmin()) { alert('Sirf Admin'); return; }
-
   var pages = document.querySelectorAll('.page');
   for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
   var target = document.getElementById(pageId);
   if (target) target.classList.add('active');
-
   var navBtns = document.querySelectorAll('.nav-btn');
   for (var j = 0; j < navBtns.length; j++) navBtns[j].classList.remove('active');
   if (btn) btn.classList.add('active');
-
   var sb = document.getElementById('sidebar');
   if (sb) sb.classList.remove('open');
-
   if (pageId === 'dashboard') renderDashboard();
   if (pageId === 'shopkeepers') renderShopkeepers();
   if (pageId === 'neworder') prepareOrderForm();
@@ -479,9 +446,7 @@ function saveUser() {
   if (!user || !pass) { alert('Username aur password zaroori!'); return; }
   if (pass.length < 4) { alert('Password kam az kam 4 characters'); return; }
   for (var i = 0; i < users.length; i++) {
-    if (users[i].user === user && users[i].id != id) {
-      alert('Ye username pehle se mojood hai'); return;
-    }
+    if (users[i].user === user && users[i].id != id) { alert('Ye username pehle se mojood hai'); return; }
   }
   var perms = {
     newOrder: document.getElementById('permNewOrder').checked,
@@ -500,10 +465,7 @@ function saveUser() {
     }
     alert('User save!'); resetUserForm(); renderUsers(); return;
   }
-  var newUser = {
-    user: user, pass: pass, display: display || user,
-    isAdmin: false, perms: perms, createdAt: new Date().toISOString()
-  };
+  var newUser = { user: user, pass: pass, display: display || user, isAdmin: false, perms: perms, createdAt: new Date().toISOString() };
   if (firebaseReady) {
     db.collection('users').add(newUser).then(function(ref) {
       newUser.id = ref.id;
@@ -511,8 +473,6 @@ function saveUser() {
       alert('User save ho gaya!');
       resetUserForm(); renderUsers();
     }).catch(function(e) { alert('Error: ' + e.message); });
-  } else {
-    alert('Internet issue.');
   }
 }
 function resetUserForm() {
@@ -564,20 +524,15 @@ function renderUsers() {
   if (!isAdmin()) return;
   var list = document.getElementById('usersList');
   if (!list) return;
-  if (users.length === 0) {
-    list.innerHTML = '<div class="empty"><i class="fa fa-users"></i>Koi user nahi.</div>';
-    return;
-  }
+  if (users.length === 0) { list.innerHTML = '<div class="empty"><i class="fa fa-users"></i>Koi user nahi.</div>'; return; }
   var html = '';
   for (var i = 0; i < users.length; i++) {
     var u = users[i];
     var badge = u.isAdmin ? '<span class="badge admin-badge">ADMIN</span>' : '<span class="badge staff-badge">STAFF</span>';
     var chips = '';
     var permsList = [
-      { k: 'newOrder', label: 'Naya Order' },
-      { k: 'deliver', label: 'Deliver' },
-      { k: 'shopkeepers', label: 'Shopkeepers' },
-      { k: 'history', label: 'History' },
+      { k: 'newOrder', label: 'Naya Order' }, { k: 'deliver', label: 'Deliver' },
+      { k: 'shopkeepers', label: 'Shopkeepers' }, { k: 'history', label: 'History' },
       { k: 'settings', label: 'Settings' }
     ];
     for (var j = 0; j < permsList.length; j++) {
@@ -589,14 +544,11 @@ function renderUsers() {
       actions = '<button class="btn small" onclick="editUser(\'' + u.id + '\')"><i class="fa fa-edit"></i> Edit</button>' +
                 '<button class="btn small danger" onclick="deleteUser(\'' + u.id + '\')"><i class="fa fa-trash"></i></button>';
     }
-    html += '<div class="item user-item">' +
-      '<div class="item-info">' +
-        '<h4><i class="fa fa-user-circle"></i> ' + (u.display || u.user) + '</h4>' +
-        '<p><b>@' + u.user + '</b></p>' + badge +
-        '<div class="perm-chips">' + chips + '</div>' +
-      '</div>' +
-      '<div class="item-actions">' + actions + '</div>' +
-    '</div>';
+    html += '<div class="item user-item"><div class="item-info">' +
+      '<h4><i class="fa fa-user-circle"></i> ' + (u.display || u.user) + '</h4>' +
+      '<p><b>@' + u.user + '</b></p>' + badge +
+      '<div class="perm-chips">' + chips + '</div></div>' +
+      '<div class="item-actions">' + actions + '</div></div>';
   }
   list.innerHTML = html;
 }
@@ -643,15 +595,10 @@ function renderDashboard() {
     var rows = '';
     var keys = Object.keys(byProduct);
     for (var k = 0; k < keys.length; k++) {
-      rows += '<div class="shop-order-line">' +
-        '<span class="product-name">📦 ' + keys[k] + '</span>' +
-        '<span class="qty">' + productQtySummary(byProduct[keys[k]]) + '</span>' +
-      '</div>';
+      rows += '<div class="shop-order-line"><span class="product-name">📦 ' + keys[k] + '</span><span class="qty">' + productQtySummary(byProduct[keys[k]]) + '</span></div>';
     }
     list.innerHTML = rows || '<div class="empty">Sab deliver ho gaya!</div>';
   }
-
-  // === Today's Pending Shopkeeper Order list ===
   renderPendingShopkeeperList();
 }
 
@@ -661,7 +608,6 @@ function renderPendingShopkeeperList() {
   var list = document.getElementById('pendingShopList');
   var badge = document.getElementById('pendingShopBadge');
   if (!list) return;
-
   var grouped = {};
   for (var i = 0; i < orders.length; i++) {
     var o = orders[i];
@@ -670,15 +616,12 @@ function renderPendingShopkeeperList() {
     if (!grouped[o.shopId]) grouped[o.shopId] = 0;
     grouped[o.shopId]++;
   }
-
   var shopIds = Object.keys(grouped);
   if (badge) badge.textContent = shopIds.length;
-
   if (shopIds.length === 0) {
     list.innerHTML = '<div class="empty"><i class="fa fa-check-circle"></i>Aaj koi pending shopkeeper order nahi.</div>';
     return;
   }
-
   var html = '';
   for (var k = 0; k < shopIds.length; k++) {
     var sid = shopIds[k];
@@ -689,34 +632,24 @@ function renderPendingShopkeeperList() {
     var count = grouped[sid];
     html += '<div class="pending-shop-name" onclick="openPendingShopModal(\'' + sid + '\')">' +
       '<span class="name-text"><i class="fa fa-store shop-icon"></i> ' + shopName + '</span>' +
-      '<span><span class="order-count">' + count + '</span><i class="fa fa-chevron-right arrow-icon"></i></span>' +
-    '</div>';
+      '<span><span class="order-count">' + count + '</span><i class="fa fa-chevron-right arrow-icon"></i></span></div>';
   }
   list.innerHTML = html;
 }
 
-// ================== PENDING SHOP MODAL ==================
 function openPendingShopModal(shopId) {
   var today = todayStr();
   var shopName = 'Unknown', shopMobile = '';
   for (var i = 0; i < shopkeepers.length; i++) {
-    if (shopkeepers[i].id == shopId) {
-      shopName = shopkeepers[i].name;
-      shopMobile = shopkeepers[i].mobile;
-    }
+    if (shopkeepers[i].id == shopId) { shopName = shopkeepers[i].name; shopMobile = shopkeepers[i].mobile; }
   }
   document.getElementById('pendingShopTitle').textContent = shopName + ' - Aaj Ke Orders';
   document.getElementById('pendingShopModal').setAttribute('data-shop-id', shopId);
-
   var sOrders = [];
   for (var i = 0; i < orders.length; i++) {
     var o = orders[i];
-    if (o.shopId == shopId && o.date === today &&
-        (o.status === 'Pending' || o.status === 'Partial')) {
-      sOrders.push(o);
-    }
+    if (o.shopId == shopId && o.date === today && (o.status === 'Pending' || o.status === 'Partial')) sOrders.push(o);
   }
-
   var body = document.getElementById('pendingShopBody');
   if (sOrders.length === 0) {
     body.innerHTML = '<div class="empty">Koi pending order nahi.</div>';
@@ -730,7 +663,6 @@ function openPendingShopModal(shopId) {
         var remM = (parseInt(it.maund) || 0) - (parseInt(it.deliveredMaund) || 0);
         var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
         if (remM <= 0 && remK <= 0) continue;
-
         var deliveredText = '';
         if (it.deliveredMaund > 0 || it.deliveredKg > 0) {
           deliveredText = '<div class="p-delivered">✓ ' + qtyText(it.deliveredMaund, it.deliveredKg) + ' deliver ho chuka</div>';
@@ -738,16 +670,12 @@ function openPendingShopModal(shopId) {
         var action = can('deliver')
           ? '<button class="btn small success" onclick="openDeliverModal(\'' + o.id + '\', \'' + it.product.replace(/'/g, "\\'") + '\')"><i class="fa fa-check"></i> Delivered</button>'
           : '';
-        linesHtml += '<div class="product-line">' +
-          '<div class="product-line-info">' +
-            '<span class="p-name">📦 ' + it.product + '</span>' +
-            '<span class="p-qty">' + qtyText(remM, remK) + '</span>' +
-            deliveredText +
-          '</div>' + action +
-        '</div>';
+        linesHtml += '<div class="product-line"><div class="product-line-info">' +
+          '<span class="p-name">📦 ' + it.product + '</span>' +
+          '<span class="p-qty">' + qtyText(remM, remK) + '</span>' + deliveredText +
+          '</div>' + action + '</div>';
       }
       if (linesHtml === '') continue;
-
       var totalKg = 0;
       for (var j = 0; j < o.items.length; j++) {
         var it = o.items[j];
@@ -755,18 +683,13 @@ function openPendingShopModal(shopId) {
         var remK = (parseInt(it.kg) || 0) - (parseInt(it.deliveredKg) || 0);
         totalKg += (remM * 40) + remK;
       }
-
-      html += '<div class="shop-group">' +
-        '<div class="shop-group-head">' +
-          '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
-            '<p><i class="fa fa-phone"></i> ' + shopMobile + ' • ' + formatDate(o.date) + '</p></div>' +
-          '<span class="shop-group-total">' + totalKgText(totalKg) + '</span>' +
-        '</div>' + linesHtml +
-      '</div>';
+      html += '<div class="shop-group"><div class="shop-group-head">' +
+        '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
+        '<p><i class="fa fa-phone"></i> ' + shopMobile + ' • ' + formatDate(o.date) + '</p></div>' +
+        '<span class="shop-group-total">' + totalKgText(totalKg) + '</span></div>' + linesHtml + '</div>';
     }
     body.innerHTML = html || '<div class="empty">Koi pending order nahi.</div>';
   }
-
   document.getElementById('pendingShopModal').classList.add('active');
 }
 
@@ -780,23 +703,16 @@ function refreshPendingShopModal() {
   if (!modal) return;
   var currentShopId = modal.getAttribute('data-shop-id');
   if (!currentShopId) { closePendingShopModal(); return; }
-
   var today = todayStr();
   var stillPending = false;
   for (var i = 0; i < orders.length; i++) {
     var o = orders[i];
-    if (o.shopId == currentShopId && o.date === today &&
-        (o.status === 'Pending' || o.status === 'Partial')) {
-      stillPending = true;
-      break;
+    if (o.shopId == currentShopId && o.date === today && (o.status === 'Pending' || o.status === 'Partial')) {
+      stillPending = true; break;
     }
   }
-
-  if (!stillPending) {
-    closePendingShopModal();
-  } else {
-    openPendingShopModal(currentShopId);
-  }
+  if (!stillPending) closePendingShopModal();
+  else openPendingShopModal(currentShopId);
 }
 
 // ================== SHOPKEEPERS ==================
@@ -807,7 +723,6 @@ function saveShopkeeper() {
   var mobile = document.getElementById('shopMobile').value.trim();
   var address = document.getElementById('shopAddress').value.trim();
   if (!name || !mobile) { alert('Naam aur mobile zaroori!'); return; }
-
   if (id) {
     for (var i = 0; i < shopkeepers.length; i++) {
       if (shopkeepers[i].id == id) {
@@ -817,20 +732,17 @@ function saveShopkeeper() {
         saveToFirebase('shopkeepers', shopkeepers[i].id, shopkeepers[i]);
       }
     }
-    resetShopForm(); renderShopkeepers(); renderDashboard();
+    resetShopForm(); renderShopkeepers(); renderDashboard(); renderShopPickerGrid();
     alert('Shopkeeper save!'); return;
   }
-
   var newShop = { name: name, mobile: mobile, address: address, createdAt: new Date().toISOString() };
   if (firebaseReady) {
     db.collection('shopkeepers').add(newShop).then(function(ref) {
       newShop.id = ref.id;
       shopkeepers.push(newShop);
-      resetShopForm(); renderShopkeepers(); renderDashboard();
+      resetShopForm(); renderShopkeepers(); renderDashboard(); renderShopPickerGrid();
       alert('Shopkeeper save!');
     }).catch(function(e) { alert('Error: ' + e.message); });
-  } else {
-    alert('Internet issue.');
   }
 }
 function resetShopForm() {
@@ -863,7 +775,7 @@ function deleteShopkeeper(id) {
     else deleteFromFirebase('shopkeepers', shopkeepers[i].id);
   }
   shopkeepers = newList;
-  renderShopkeepers(); renderDashboard();
+  renderShopkeepers(); renderDashboard(); renderShopPickerGrid();
 }
 function renderShopkeepers() {
   var list = document.getElementById('shopkeepersList');
@@ -886,18 +798,14 @@ function renderShopkeepers() {
       editBtns = '<button class="btn small" onclick="editShopkeeper(\'' + s.id + '\')"><i class="fa fa-edit"></i> Edit</button>' +
                  '<button class="btn small danger" onclick="deleteShopkeeper(\'' + s.id + '\')"><i class="fa fa-trash"></i></button>';
     }
-    html += '<div class="item">' +
-      '<div class="item-info">' +
-        '<h4><i class="fa fa-store"></i> ' + s.name + '</h4>' +
-        '<p><i class="fa fa-phone"></i> ' + s.mobile + '</p>' +
-        (s.address ? '<p><i class="fa fa-map-marker-alt"></i> ' + s.address + '</p>' : '') +
-        '<p><small>' + total + ' total • ' + pending + ' pending</small></p>' +
-      '</div>' +
+    html += '<div class="item"><div class="item-info">' +
+      '<h4><i class="fa fa-store"></i> ' + s.name + '</h4>' +
+      '<p><i class="fa fa-phone"></i> ' + s.mobile + '</p>' +
+      (s.address ? '<p><i class="fa fa-map-marker-alt"></i> ' + s.address + '</p>' : '') +
+      '<p><small>' + total + ' total • ' + pending + ' pending</small></p></div>' +
       '<div class="item-actions">' +
-        '<button class="btn small" onclick="viewShopHistory(\'' + s.id + '\')"><i class="fa fa-history"></i> History</button>' +
-        editBtns +
-      '</div>' +
-    '</div>';
+      '<button class="btn small" onclick="viewShopHistory(\'' + s.id + '\')"><i class="fa fa-history"></i> History</button>' +
+      editBtns + '</div></div>';
   }
   list.innerHTML = html;
   if (!can('shopkeepers')) {
@@ -908,7 +816,6 @@ function renderShopkeepers() {
 
 // ================== NEW ORDER (2-STEP) ==================
 function prepareOrderForm() {
-  // Step 1 pe wapas jao
   selectedShopIdForOrder = null;
   var step1 = document.getElementById('shopPickerStep');
   var step2 = document.getElementById('orderFormStep');
@@ -916,9 +823,7 @@ function prepareOrderForm() {
   if (step2) step2.style.display = 'none';
   var sub = document.getElementById('newOrderSub');
   if (sub) sub.textContent = 'Pehle shopkeeper chunein';
-
   renderShopPickerGrid();
-
   var dEl = document.getElementById('orderDate');
   if (dEl) dEl.value = todayStr();
   var rows = document.getElementById('productRows');
@@ -929,6 +834,7 @@ function prepareOrderForm() {
 function renderShopPickerGrid() {
   var grid = document.getElementById('shopPickerGrid');
   if (!grid) return;
+  console.log('renderShopPickerGrid called. shopkeepers count:', shopkeepers.length);
   if (shopkeepers.length === 0) {
     grid.innerHTML = '<div class="empty" style="grid-column: 1 / -1;"><i class="fa fa-users"></i>Pehle shopkeeper add karein (Shopkeepers page se).</div>';
     return;
@@ -941,7 +847,7 @@ function renderShopPickerGrid() {
       '<div class="sp-name">' + s.name + '</div>' +
       '<div class="sp-mobile"><i class="fa fa-phone"></i> ' + s.mobile + '</div>' +
       (s.address ? '<div class="sp-address"><i class="fa fa-map-marker-alt"></i> ' + s.address + '</div>' : '') +
-    '</div>';
+      '</div>';
   }
   grid.innerHTML = html;
 }
@@ -953,18 +859,14 @@ function selectShopkeeperForOrder(shopId) {
     if (shopkeepers[i].id == shopId) shop = shopkeepers[i];
   }
   if (!shop) return;
-
   document.getElementById('selectedShopName').textContent = shop.name;
   document.getElementById('selectedShopMobile').innerHTML = '<i class="fa fa-phone"></i> ' + shop.mobile;
-
   document.getElementById('shopPickerStep').style.display = 'none';
   document.getElementById('orderFormStep').style.display = 'block';
   var sub = document.getElementById('newOrderSub');
   if (sub) sub.textContent = 'Ab products aur quantity add karein';
-
   var dEl = document.getElementById('orderDate');
   if (dEl) dEl.value = todayStr();
-
   var rows = document.getElementById('productRows');
   if (rows) { rows.innerHTML = ''; addProductRow(); }
   updateSummary();
@@ -993,15 +895,12 @@ function addProductRow() {
     productsHtml += '<option value="' + products[i] + '">' + products[i] + '</option>';
   }
   var removeBtn = idx > 0 ? '<button class="remove-btn" onclick="removeProductRow(this)"><i class="fa fa-trash"></i></button>' : '';
-  div.innerHTML = '<div class="product-row-head">' +
-      '<h4><i class="fa fa-box"></i> Product #' + (idx + 1) + '</h4>' + removeBtn +
-    '</div>' +
+  div.innerHTML = '<div class="product-row-head"><h4><i class="fa fa-box"></i> Product #' + (idx + 1) + '</h4>' + removeBtn + '</div>' +
     '<div class="form-group"><label>Product</label><select class="prod-select" onchange="updateSummary()">' + productsHtml + '</select></div>' +
     '<div class="qty-row">' +
-      '<div class="form-group"><label>Maund</label><input type="number" class="maund-input" min="0" placeholder="0" oninput="updateSummary()" /></div>' +
-      '<div class="form-group"><label>Kg</label><input type="number" class="kg-input" min="0" max="39" placeholder="0" oninput="updateSummary()" /></div>' +
-      '<div class="form-group"><label>Total</label><input type="text" class="total-input" readonly /></div>' +
-    '</div>';
+    '<div class="form-group"><label>Maund</label><input type="number" class="maund-input" min="0" placeholder="0" oninput="updateSummary()" /></div>' +
+    '<div class="form-group"><label>Kg</label><input type="number" class="kg-input" min="0" max="39" placeholder="0" oninput="updateSummary()" /></div>' +
+    '<div class="form-group"><label>Total</label><input type="text" class="total-input" readonly /></div></div>';
   container.appendChild(div);
   updateSummary();
 }
@@ -1069,17 +968,10 @@ function saveMultiOrder() {
     db.collection('orders').add(newOrder).then(function(ref) {
       newOrder.id = ref.id;
       orders.push(newOrder);
-      var shopName = '';
-      for (var i = 0; i < shopkeepers.length; i++) {
-        if (shopkeepers[i].id == shopId) shopName = shopkeepers[i].name;
-      }
-      alert('Order save!\n' + shopName + '\n' + items.length + ' products');
-      // Wapas Step 1 pe jao, nayi shop chunne ke liye
+      alert('Order save!');
       prepareOrderForm();
       document.getElementById('orderNotes').value = '';
     }).catch(function(e) { alert('Error: ' + e.message); });
-  } else {
-    alert('Internet issue.');
   }
 }
 
@@ -1157,25 +1049,16 @@ function renderOrdersPage() {
         var action = can('deliver')
           ? '<button class="btn small success" onclick="openDeliverModal(\'' + o.id + '\', \'' + it.product.replace(/'/g, "\\'") + '\')"><i class="fa fa-check"></i> Delivered</button>'
           : '';
-        linesHtml += '<div class="product-line">' +
-          '<div class="product-line-info">' +
-            '<span class="p-name">📦 ' + it.product + '</span>' +
-            '<span class="p-qty">' + qtyText(remM, remK) + '</span>' +
-            deliveredText +
-          '</div>' + action +
-        '</div>';
+        linesHtml += '<div class="product-line"><div class="product-line-info">' +
+          '<span class="p-name">📦 ' + it.product + '</span>' +
+          '<span class="p-qty">' + qtyText(remM, remK) + '</span>' + deliveredText +
+          '</div>' + action + '</div>';
       }
     }
-    html += '<div class="shop-group">' +
-      '<div class="shop-group-head">' +
-        '<div>' +
-          '<h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
-          '<p><i class="fa fa-map-marker-alt"></i> ' + shopAddress + ' • <i class="fa fa-phone"></i> ' + shopMobile + '</p>' +
-        '</div>' +
-        '<span class="shop-group-total">' + totalKgText(shopKg) + '</span>' +
-      '</div>' +
-      linesHtml +
-    '</div>';
+    html += '<div class="shop-group"><div class="shop-group-head">' +
+      '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
+      '<p><i class="fa fa-map-marker-alt"></i> ' + shopAddress + ' • <i class="fa fa-phone"></i> ' + shopMobile + '</p></div>' +
+      '<span class="shop-group-total">' + totalKgText(shopKg) + '</span></div>' + linesHtml + '</div>';
   }
   list.innerHTML = html;
 }
@@ -1199,18 +1082,12 @@ function openDeliverModal(orderId, product) {
   for (var i = 0; i < pending.length; i++) {
     var p = pending[i];
     var totalText = qtyText(p.maund, p.kg);
-    html += '<div class="deliver-row">' +
-      '<div class="deliver-row-head">Baqi: ' + totalText + '</div>' +
+    html += '<div class="deliver-row"><div class="deliver-row-head">Baqi: ' + totalText + '</div>' +
       '<div class="deliver-row-sub">Kitna deliver? (khaali chhoro to poora)</div>' +
       '<div class="deliver-qty-row">' +
-        '<div class="form-group"><label>Maund</label>' +
-          '<input type="number" class="deliver-maund" min="0" max="' + p.maund + '" placeholder="' + p.maund + '" data-idx="' + p.index + '" />' +
-        '</div>' +
-        '<div class="form-group"><label>Kg</label>' +
-          '<input type="number" class="deliver-kg" min="0" max="' + p.kg + '" placeholder="' + p.kg + '" data-idx="' + p.index + '" />' +
-        '</div>' +
-      '</div>' +
-    '</div>';
+      '<div class="form-group"><label>Maund</label><input type="number" class="deliver-maund" min="0" max="' + p.maund + '" placeholder="' + p.maund + '" data-idx="' + p.index + '" /></div>' +
+      '<div class="form-group"><label>Kg</label><input type="number" class="deliver-kg" min="0" max="' + p.kg + '" placeholder="' + p.kg + '" data-idx="' + p.index + '" /></div>' +
+      '</div></div>';
   }
   body.innerHTML = html;
   document.getElementById('deliverModal').classList.add('active');
@@ -1248,12 +1125,8 @@ function confirmDelivery() {
   saveToFirebase('orders', order.id, order);
   closeDeliverModal();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
-
   var pm = document.getElementById('pendingShopModal');
-  if (pm && pm.classList.contains('active')) {
-    refreshPendingShopModal();
-  }
-
+  if (pm && pm.classList.contains('active')) refreshPendingShopModal();
   alert('Deliver ho gaya!');
 }
 function markAllDelivered() {
@@ -1273,12 +1146,8 @@ function markAllDelivered() {
   saveToFirebase('orders', order.id, order);
   closeDeliverModal();
   renderOrdersPage(); renderDashboard(); renderDelivery(); renderHistory();
-
   var pm = document.getElementById('pendingShopModal');
-  if (pm && pm.classList.contains('active')) {
-    refreshPendingShopModal();
-  }
-
+  if (pm && pm.classList.contains('active')) refreshPendingShopModal();
   alert('Poora deliver ho gaya!');
 }
 
@@ -1305,10 +1174,7 @@ function renderDelivery() {
     var shopId = keys[k];
     var shopName = 'Unknown', shopMobile = '';
     for (var i = 0; i < shopkeepers.length; i++) {
-      if (shopkeepers[i].id == shopId) {
-        shopName = shopkeepers[i].name;
-        shopMobile = shopkeepers[i].mobile;
-      }
+      if (shopkeepers[i].id == shopId) { shopName = shopkeepers[i].name; shopMobile = shopkeepers[i].mobile; }
     }
     var sOrders = grouped[shopId];
     var totalKg = 0;
@@ -1336,22 +1202,16 @@ function renderDelivery() {
         var action = can('deliver')
           ? '<button class="btn small success" onclick="openDeliverModal(\'' + o.id + '\', \'' + it.product.replace(/'/g, "\\'") + '\')"><i class="fa fa-check"></i> Delivered</button>'
           : '';
-        linesHtml += '<div class="product-line">' +
-          '<div class="product-line-info">' +
-            '<span class="p-name">📦 ' + it.product + '</span>' +
-            '<span class="p-qty">' + qtyText(remM, remK) + '</span>' +
-            deliveredText +
-          '</div>' + action +
-        '</div>';
+        linesHtml += '<div class="product-line"><div class="product-line-info">' +
+          '<span class="p-name">📦 ' + it.product + '</span>' +
+          '<span class="p-qty">' + qtyText(remM, remK) + '</span>' + deliveredText +
+          '</div>' + action + '</div>';
       }
     }
-    html += '<div class="shop-group">' +
-      '<div class="shop-group-head">' +
-        '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
-          '<p><i class="fa fa-phone"></i> ' + shopMobile + '</p></div>' +
-        '<span class="shop-group-total">' + totalKgText(totalKg) + '</span>' +
-      '</div>' + linesHtml +
-    '</div>';
+    html += '<div class="shop-group"><div class="shop-group-head">' +
+      '<div><h4><i class="fa fa-store"></i> ' + shopName + '</h4>' +
+      '<p><i class="fa fa-phone"></i> ' + shopMobile + '</p></div>' +
+      '<span class="shop-group-total">' + totalKgText(totalKg) + '</span></div>' + linesHtml + '</div>';
   }
   list.innerHTML = html;
 }
@@ -1393,13 +1253,10 @@ function renderHistory() {
     for (var j = 0; j < o.items.length; j++) {
       itemsHtml += '<p>• ' + o.items[j].product + ' — <b>' + qtyText(o.items[j].maund, o.items[j].kg) + '</b></p>';
     }
-    html += '<div class="item delivered-item">' +
-      '<div class="item-info">' +
-        '<h4>' + shopName + '</h4>' + itemsHtml +
-        '<p class="date-line"><i class="fa fa-calendar"></i> ' + formatDate(o.date) + '</p>' +
-        '<span class="badge delivered">Delivered</span>' +
-      '</div>' +
-    '</div>';
+    html += '<div class="item delivered-item"><div class="item-info">' +
+      '<h4>' + shopName + '</h4>' + itemsHtml +
+      '<p class="date-line"><i class="fa fa-calendar"></i> ' + formatDate(o.date) + '</p>' +
+      '<span class="badge delivered">Delivered</span></div></div>';
   }
   list.innerHTML = html;
 }
@@ -1409,7 +1266,7 @@ function clearHistoryFilter() {
   renderHistory();
 }
 
-// ================== MODAL ==================
+// ================== SHOP HISTORY MODAL ==================
 function viewShopHistory(shopId) {
   var shopName = '';
   for (var i = 0; i < shopkeepers.length; i++) {
@@ -1436,10 +1293,8 @@ function viewShopHistory(shopId) {
       if (o.status === 'Partial') st = 'partial';
       html += '<div class="item ' + (o.status === 'Delivered' ? 'delivered-item' : 'pending-item') + '" style="margin-bottom:10px;">' +
         '<div class="item-info">' + itemsHtml +
-          '<p><small>' + formatDate(o.date) + '</small></p>' +
-          '<span class="badge ' + st + '">' + o.status + '</span>' +
-        '</div>' +
-      '</div>';
+        '<p><small>' + formatDate(o.date) + '</small></p>' +
+        '<span class="badge ' + st + '">' + o.status + '</span></div></div>';
     }
     body.innerHTML = html;
   }
@@ -1454,9 +1309,7 @@ window.addEventListener('load', function() {
   applySettings();
   initFirebase(function() {
     loadAllData(function() {
-      // Auto shift pending orders to today's date
       autoShiftPendingOrders();
-
       var loggedIn = localStorage.getItem('isLoggedIn') === 'true';
       var cachedUser = JSON.parse(localStorage.getItem('currentUser'));
       if (loggedIn && cachedUser) {
