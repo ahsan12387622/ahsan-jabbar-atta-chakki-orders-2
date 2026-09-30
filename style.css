@@ -269,51 +269,84 @@ h3 { font-size: 16px; margin-bottom: 12px; }
 .route-total-breakdown .route-breakdown-line { padding: 5px 0; }
 
 /* ============================================================
-   PRODUCT & QUANTITY COLOR SCHEME (PURI WEBSITE)
-   Product: Blue-Purple pill | Quantity: Green pill
+   PRODUCT & QUANTITY COLOR SCHEME
    ============================================================ */
-
-/* Dashboard — Aaj Ka Load */
 .shop-order-line { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; flex-wrap: wrap; gap: 8px; }
 .shop-order-line:last-child { border-bottom: none; }
 .shop-order-line .product-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3; font-weight: 700; font-size: 14px; padding: 6px 14px; border-radius: 20px; border: 1px solid #c7d2fe; }
 .shop-order-line .qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; font-weight: 800; font-size: 14px; padding: 6px 14px; border-radius: 20px; border: 1px solid #86efac; }
 
-/* Product line */
 .product-line-info .p-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3 !important; font-weight: 700; font-size: 14px; padding: 5px 12px; border-radius: 16px; border: 1px solid #c7d2fe; margin-bottom: 4px; }
 .product-line-info .p-qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d !important; font-weight: 800; font-size: 14px; padding: 5px 12px; border-radius: 16px; border: 1px solid #86efac; margin-left: 6px; margin-bottom: 4px; }
 
-/* Route breakdown */
 .route-breakdown-line .rb-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3 !important; font-weight: 700; font-size: 13px; padding: 4px 12px; border-radius: 14px; border: 1px solid #c7d2fe; }
 .route-breakdown-line .rb-qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5) !important; color: #15803d !important; font-weight: 800; font-size: 13px; padding: 4px 12px; border-radius: 14px; border: 1px solid #86efac; }
 
-/* Route modal total (green bg) */
 .route-total-breakdown .route-breakdown-line .rb-name { background: rgba(255, 255, 255, 0.2); color: #ffffff !important; border-color: rgba(255, 255, 255, 0.35); }
 .route-total-breakdown .route-breakdown-line .rb-qty { background: rgba(255, 255, 255, 0.25) !important; color: #ffffff !important; border-color: rgba(255, 255, 255, 0.4); }
 
-/* Route detail shop items (product line — combined) */
 .route-detail-items .route-product-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #e2e8f0; flex-wrap: wrap; gap: 8px; }
 .route-detail-items .route-product-line:last-child { border-bottom: none; }
 .route-detail-items .rp-name { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 16px; border: 1px solid #c7d2fe; }
 .route-detail-items .rp-qty { display: inline-flex; align-items: center; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; font-weight: 800; font-size: 13px; padding: 5px 12px; border-radius: 16px; border: 1px solid #86efac; }
 
-/* Added Products list */
 .added-product-row .ap-name { background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3; padding: 6px 14px; border-radius: 20px; border: 1px solid #c7d2fe; font-weight: 700; font-size: 14px; }
 .added-product-row .ap-qty { background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; padding: 6px 14px; border-radius: 20px; border: 1px solid #86efac; font-weight: 800; font-size: 14px; }
 
-/* History items */
 .item-info p b { color: #15803d; background: #dcfce7; padding: 2px 10px; border-radius: 10px; font-weight: 800; }
 
-/* Deliver modal */
 .deliver-row-head { display: inline-block; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; padding: 6px 14px; border-radius: 20px; border: 1px solid #86efac; font-weight: 800; font-size: 14px; margin-bottom: 8px; }
 
-/* Product Chunein grid */
 .product-picker-card .pp-name { background: linear-gradient(135deg, #e0e7ff, #ede9fe); color: #3730a3; padding: 5px 14px; border-radius: 14px; border: 1px solid #c7d2fe; display: inline-block; font-weight: 700; font-size: 13px; }
 .product-picker-card.added .pp-name { background: linear-gradient(135deg, #dcfce7, #d1fae5); color: #15803d; border-color: #86efac; }
 
-/* Route shop picker order summary */
 .route-shop-item .shop-order-summary { display: block; font-size: 12px; color: #16a34a; font-weight: 600; margin-top: 4px; background: #f0fdf4; padding: 4px 8px; border-radius: 6px; line-height: 1.4; }
 .route-shop-item.selected .shop-order-summary { background: rgba(22, 163, 74, 0.15); color: #15803d; }
+
+/* ============ PENDING SHOP MODAL — CHECKBOX & DELIVER ============ */
+.product-line.selectable-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+}
+
+.deliver-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.deliver-checkbox input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: #16a34a;
+  cursor: pointer;
+  margin: 0;
+}
+
+.deliver-selected-btn {
+  background: linear-gradient(135deg, #16a34a, #15803d) !important;
+  color: #fff !important;
+  border: none !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(22,163,74,0.3);
+  margin: 0 !important;
+}
+
+.deliver-selected-btn:disabled {
+  background: #cbd5e1 !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed !important;
+  box-shadow: none;
+}
 
 /* Mobile padding */
 @media (max-width: 500px) {
